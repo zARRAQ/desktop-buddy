@@ -40,7 +40,7 @@ def main(
     config_dir: Path | None = typer.Option(
         None, "--config-dir", help="Directory with hardware.yaml / local.yaml", envvar="ROBOT_CONFIG_DIR"
     ),
-    set_: list[str] = typer.Option([], "--set", help="Override a value: --set display.backend=null"),  # noqa: B008
+    set_: list[str] = typer.Option([], "--set", help="Override a value: --set display.backend=null"),
     log_level: str = typer.Option("INFO", "--log-level", envvar="ROBOT_LOG_LEVEL"),
     version: bool = typer.Option(False, "--version", is_eager=True),
 ) -> None:

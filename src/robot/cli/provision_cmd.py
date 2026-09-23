@@ -23,7 +23,7 @@ def provision_command(
     ctx: typer.Context,
     list_: bool = typer.Option(False, "--list", help="Show what would be downloaded, with sizes"),
     verify: bool = typer.Option(False, "--verify", help="Checksum everything already on disk"),
-    group: list[str] = typer.Option(  # noqa: B008
+    group: list[str] = typer.Option(
         [], "--group", help="Restrict to groups (repeatable). Default: what this machine needs"
     ),
     all_: bool = typer.Option(

@@ -68,7 +68,7 @@ def enroll_command(
     ctx: typer.Context,
     name: str = typer.Option(..., "--name", help="Who this is"),
     samples: int = typer.Option(5, "--samples", help="Embeddings to capture from the camera"),
-    images: Path | None = typer.Option(None, "--images", help="Directory of photos instead of the camera"),  # noqa: B008
+    images: Path | None = typer.Option(None, "--images", help="Directory of photos instead of the camera"),
 ) -> None:
     """Teach the robot a face: five captures while you turn your head, or a folder of photos."""
     cfg = get_ctx(ctx).config()
