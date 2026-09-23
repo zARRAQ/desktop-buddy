@@ -1,0 +1,51 @@
+# Example actuator maps for the three sensible four-channel layouts.
+# Copy the `actuators:` block you built into config/hardware.yaml (or config/local.yaml).
+# Pins follow docs/HARDWARE.md section 5.2. GPIO26 (standby) belongs to the safety
+# supervisor and is never driven by motion.
+
+# Any layout with a drivetrain (A, B) should run the enable line in pulse mode through the
+# hardware pulse watchdog described in docs/HARDWARE.md 5.3. Put this next to the actuators block:
+#
+# safety:
+#   enable_mode: pulse
+#
+# Layout C has no motors and can stay on `level`.
+
+layouts:
+  # A. Pan/tilt head + two drive motors (default). Face tracking without moving the body.
+  A:
+    layout: A
+    drivers:
+      dc: {type: tb6612fng, pins: {pwma: 12, ain1: 5, ain2: 6, pwmb: 13, bin1: 14, bin2: 15, standby: 26}, pwm_hz: 20000}
+      servo: {type: pca9685, i2c_address: 0x40, pwm_hz: 50, oe_pin: 16}
+    channels:
+      drive_left:  {role: drive, driver: dc, motor: a, invert: false, encoder: {pin_a: 17, pin_b: 27, ticks_per_rev: 700}}
+      drive_right: {role: drive, driver: dc, motor: b, invert: true,  encoder: {pin_a: 22, pin_b: 23, ticks_per_rev: 700}}
+      head_pan:    {role: pan,  driver: servo, channel: 0, min_deg: -70, max_deg: 70, center_us: 1500, us_per_deg: 10.0, max_deg_s: 180}
+      head_tilt:   {role: tilt, driver: servo, channel: 1, min_deg: -30, max_deg: 35, center_us: 1500, us_per_deg: 10.0, max_deg_s: 180}
+    geometry: {wheel_diameter_mm: 40, track_width_mm: 95}
+
+  # B. "Authentic Vector": head tilt + lift arm + two drive motors. Turns its body to look at you.
+  B:
+    layout: B
+    drivers:
+      dc: {type: tb6612fng, pins: {pwma: 12, ain1: 5, ain2: 6, pwmb: 13, bin1: 14, bin2: 15, standby: 26}, pwm_hz: 20000}
+      servo: {type: pca9685, i2c_address: 0x40, pwm_hz: 50, oe_pin: 16}
+    channels:
+      drive_left:  {role: drive, driver: dc, motor: a, invert: false, encoder: {pin_a: 17, pin_b: 27, ticks_per_rev: 700}}
+      drive_right: {role: drive, driver: dc, motor: b, invert: true,  encoder: {pin_a: 22, pin_b: 23, ticks_per_rev: 700}}
+      head_tilt:   {role: tilt, driver: servo, channel: 0, min_deg: -25, max_deg: 40, max_deg_s: 160}
+      lift_arm:    {role: lift, driver: servo, channel: 1, min_deg: 0,   max_deg: 90, max_deg_s: 120}
+    geometry: {wheel_diameter_mm: 40, track_width_mm: 95}
+
+  # C. Static expressive: four servos, no drivetrain, no cliff risk.
+  C:
+    layout: C
+    drivers:
+      dc: {type: none}
+      servo: {type: pca9685, i2c_address: 0x40, pwm_hz: 50, oe_pin: 16}
+    channels:
+      head_pan:  {role: pan,       driver: servo, channel: 0, min_deg: -70, max_deg: 70}
+      head_tilt: {role: tilt,      driver: servo, channel: 1, min_deg: -30, max_deg: 35}
+      arm_left:  {role: arm_left,  driver: servo, channel: 2, min_deg: 0,   max_deg: 120}
+      arm_right: {role: arm_right, driver: servo, channel: 3, min_deg: 0,   max_deg: 120}

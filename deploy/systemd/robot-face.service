@@ -1,0 +1,26 @@
+[Unit]
+Description=Robot service: face
+PartOf=robot.target
+After=robot-broker.service
+Requires=robot-broker.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=@USER@
+Group=@USER@
+SupplementaryGroups=video audio gpio i2c spi render input
+WorkingDirectory=@REPO@
+EnvironmentFile=-@REPO@/config/robot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@VENV@/bin/robot run face
+Restart=always
+RestartSec=2
+WatchdogSec=30
+TimeoutStopSec=10
+Nice=-5
+# Keep the face smooth while the language model saturates the CPU.
+CPUWeight=300
+
+[Install]
+WantedBy=robot.target

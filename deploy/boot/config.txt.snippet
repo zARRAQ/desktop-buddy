@@ -1,0 +1,29 @@
+# ---- desktop-buddy: append to /boot/firmware/config.txt (Raspberry Pi 5 only) ----
+[pi5]
+# PCIe Gen 3 for the AI HAT+ / AI Kit
+dtparam=pciex1_gen=3
+
+# Interfaces
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=400000
+dtparam=spi=on            # only needed for a bare SPI panel; harmless otherwise
+
+# I2S audio: MAX98357A amplifier on GPIO18 (BCLK), GPIO19 (LRCLK), GPIO21 (DIN)
+dtparam=i2s=on
+dtoverlay=max98357a,no-sdmode
+dtparam=audio=off
+
+# Hardware PWM for the motor driver on GPIO12 (PWMA) and GPIO13 (PWMB).
+# GPIO18/19 would be the other two PWM pins but they carry I2S above.
+dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
+
+# Do NOT enable the header UART: GPIO14/15 are the motor direction pins BIN1/BIN2.
+# (The Pi 5 debug UART is the separate 3-pin connector and is unaffected.)
+# enable_uart=0
+
+# Camera and display autodetect (defaults, listed so they are visible)
+camera_auto_detect=1
+display_auto_detect=1
+
+# DSI panel: add the vendor's overlay here, for example for the Waveshare 2.8" DSI LCD:
+# dtoverlay=vc4-kms-dsi-waveshare-panel,2_8_inch

@@ -1,0 +1,12 @@
+# Let the robot service user reach the peripherals without root.
+# Installed by deploy/install.sh into /etc/udev/rules.d/.
+SUBSYSTEM=="spidev", GROUP="spi", MODE="0660"
+SUBSYSTEM=="i2c-dev", GROUP="i2c", MODE="0660"
+SUBSYSTEM=="gpio", GROUP="gpio", MODE="0660"
+KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
+SUBSYSTEM=="pwm", ACTION=="add", RUN+="/bin/chgrp -R gpio /sys%p", RUN+="/bin/chmod -R g=u /sys%p"
+SUBSYSTEM=="pwm", ACTION=="change", RUN+="/bin/chgrp -R gpio /sys%p", RUN+="/bin/chmod -R g=u /sys%p"
+# Hailo accelerator (PCIe)
+KERNEL=="hailo*", GROUP="video", MODE="0660"
+# Framebuffer and DRM for the face
+KERNEL=="fb[0-9]*", GROUP="video", MODE="0660"

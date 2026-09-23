@@ -1,0 +1,24 @@
+[Unit]
+Description=Robot service: voice
+PartOf=robot.target
+After=robot-broker.service
+Requires=robot-broker.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=@USER@
+Group=@USER@
+SupplementaryGroups=video audio gpio i2c spi render input
+WorkingDirectory=@REPO@
+EnvironmentFile=-@REPO@/config/robot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@VENV@/bin/robot run voice
+Restart=always
+RestartSec=2
+WatchdogSec=30
+TimeoutStopSec=10
+CPUWeight=150
+
+[Install]
+WantedBy=robot.target

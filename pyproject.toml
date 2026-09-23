@@ -1,0 +1,174 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "desktop-buddy"
+version = "0.1.0"
+description = "Desktop companion robot for Raspberry Pi 5: procedural face, face recognition, local voice and LLM, four-actuator body, safety supervisor."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "desktop-buddy contributors" }]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "numpy>=1.26",
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+  "pyzmq>=25",
+  "msgpack>=1.0.5",
+  "typer>=0.12",
+  "pygame-ce>=2.5",
+  "opencv-python-headless>=4.10",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Speech: wake word, VAD, STT, TTS. All Apache-2.0 / MIT; no GPL components.
+voice = [
+  "sherpa-onnx>=1.12",
+  "sounddevice>=0.5",
+  "onnxruntime>=1.17",
+  "openwakeword>=0.6",
+]
+# Raspberry Pi hardware access. picamera2, libcamera and the HailoRT bindings come
+# from apt and are seen through a --system-site-packages venv (see docs/INSTALL.md).
+pi = [
+  "gpiozero>=2.0.1",
+  "lgpio>=0.2.2",
+  "smbus2>=0.4",
+  "spidev>=3.6",
+]
+dev = [
+  "pytest>=8",
+  "pytest-timeout>=2.3",
+  "hypothesis>=6.100",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "import-linter>=2.0",
+  "types-PyYAML",
+]
+
+[project.scripts]
+robot = "robot.cli.main:app"
+
+[project.urls]
+Repository = "https://github.com/zARRAQ/desktop-buddy"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/robot"]
+
+[tool.uv]
+# openwakeword 0.6 hard-depends on tflite-runtime on Linux, which has no wheels for
+# Python 3.12+. We only use its ONNX path, so the dependency is masked here.
+override-dependencies = [
+  "tflite-runtime; python_version < '3.0'",
+]
+
+# ---------------------------------------------------------------------------
+# Lint / type check / import architecture
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PL", "N", "ARG", "PTH", "T20"]
+ignore = [
+  "PLR0913", # many arguments: HAL constructors legitimately take many pins
+  "PLR2004", # magic values: register maps and geometry constants
+  "PLR0912", "PLR0915", "PLR0911", # branchy detection cascades are explicit on purpose
+  "RUF012",  # mutable class attributes are used for register tables
+  "SIM108",  # ternaries are not always clearer
+  "PLC0415", # hardware libraries are imported lazily on purpose (absent on a laptop)
+  "B027",    # optional lifecycle hooks on ABCs are empty by design
+  "ARG002",  # hook signatures (tick(dt), callbacks) keep unused parameters
+  "E501",    # the formatter wraps code; long log/help strings are left alone
+  "PLR0917", # geometry helpers take several positional floats
+  "UP042",   # str-valued enums are wire values, kept explicit
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "ARG", "T20", "PLC1901"]
+"src/robot/cli/**" = ["T20", "B008"]  # the CLI prints; typer.Option defaults are its idiom
+"src/robot/sim/**" = ["T20"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+# no python_version pin: mypy follows the interpreter so 3.13 stubs (numpy uses the `type` statement) parse
+strict = true
+warn_return_any = false
+disallow_any_generics = false
+mypy_path = "src"
+packages = ["robot"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+  "cv2", "cv2.*",
+  "zmq", "zmq.*",
+  "msgpack",
+  "pygame", "pygame.*",
+  "hailo_platform", "hailo_platform.*",
+  "picamera2", "picamera2.*", "libcamera",
+  "gpiozero", "gpiozero.*", "lgpio",
+  "smbus2", "spidev",
+  "sherpa_onnx", "sounddevice", "openwakeword", "openwakeword.*", "onnxruntime",
+  "VL53L1X",
+  "hypothesis", "hypothesis.*",
+]
+ignore_missing_imports = true
+
+[tool.importlinter]
+root_package = "robot"
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Layered architecture: cli > sim/doctor > services > memory/provision > hal > core"
+type = "layers"
+layers = [
+  "robot.cli",
+  "robot.sim | robot.doctor",
+  "robot.orchestrator | robot.face | robot.perception | robot.voice | robot.brain | robot.motion | robot.safety",
+  "robot.memory | robot.provision",
+  "robot.hal",
+  "robot.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "Services talk over the bus, never import each other"
+type = "independence"
+modules = [
+  "robot.orchestrator",
+  "robot.perception",
+  "robot.voice",
+  "robot.brain",
+  "robot.motion",
+  "robot.safety",
+]
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
+addopts = "-ra -q"
+markers = [
+  "hardware: needs a Raspberry Pi with the real peripheral attached",
+  "models: needs downloaded model files (run `robot provision`)",
+  "slow: takes more than a few seconds",
+]
+filterwarnings = ["ignore::DeprecationWarning:pygame.*"]

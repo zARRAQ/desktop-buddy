@@ -1,0 +1,26 @@
+[Unit]
+Description=Robot service: safety
+PartOf=robot.target
+After=robot-broker.service
+Requires=robot-broker.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=@USER@
+Group=@USER@
+SupplementaryGroups=video audio gpio i2c spi render input
+WorkingDirectory=@REPO@
+EnvironmentFile=-@REPO@/config/robot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@VENV@/bin/robot run safety
+Restart=always
+RestartSec=2
+WatchdogSec=30
+TimeoutStopSec=10
+Nice=-10
+# The supervisor owns GPIO26. Killing it must stop the motors: see docs/HARDWARE.md 5.3.
+OOMScoreAdjust=-900
+
+[Install]
+WantedBy=robot.target

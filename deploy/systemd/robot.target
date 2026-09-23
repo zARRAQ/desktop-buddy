@@ -1,0 +1,8 @@
+[Unit]
+Description=Desktop companion robot (all services)
+Documentation=https://github.com/zARRAQ/desktop-buddy
+Wants=robot-broker.service robot-safety.service robot-motion.service robot-face.service robot-perception.service robot-voice.service robot-brain.service robot-orchestrator.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target
