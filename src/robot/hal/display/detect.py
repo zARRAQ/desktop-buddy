@@ -57,7 +57,15 @@ class DetectionResult:
     controller: str = "auto"
     reasons: list[str] = field(default_factory=list)
 
+    @property
+    def session_bound(self) -> bool:
+        """A desktop window exists only inside the login session that detected it. Saved
+        into local.yaml it would break the systemd units, which have no DISPLAY."""
+        return self.backend == "window"
+
     def as_local_config(self) -> dict[str, object]:
+        if self.session_bound:
+            return {"backend": "auto"}
         out: dict[str, object] = {"backend": self.backend}
         if self.device:
             out["device"] = self.device

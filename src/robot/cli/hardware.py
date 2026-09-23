@@ -41,7 +41,14 @@ def display_detect(
         typer.echo(f"  because  : {r}")
     if save:
         path = write_local_section("display", det.as_local_config(), config_dir=c.config_dir)
-        typer.secho(f"saved to {path}", fg=typer.colors.GREEN)
+        if det.session_bound:
+            typer.secho(
+                f"desktop window depends on this login session, so display.backend stays auto in {path}; "
+                "the services will pick kms (HDMI/DSI) when they run without a desktop",
+                fg=typer.colors.YELLOW,
+            )
+        else:
+            typer.secho(f"saved to {path}", fg=typer.colors.GREEN)
 
 
 @display_app.command("test")
@@ -154,7 +161,8 @@ def camera_detect(ctx: typer.Context, save: bool = typer.Option(False, "--save")
         typer.echo(f"  because: {r}")
     if save:
         path = write_local_section("camera", det.as_local_config(), config_dir=c.config_dir)
-        typer.secho(f"saved to {path}", fg=typer.colors.GREEN)
+        note = " (backend only; the /dev/video node is found again at each start)" if det.backend == "uvc" else ""
+        typer.secho(f"saved to {path}{note}", fg=typer.colors.GREEN)
 
 
 @camera_app.command("test")

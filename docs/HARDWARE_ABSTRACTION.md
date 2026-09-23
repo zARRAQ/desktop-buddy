@@ -265,12 +265,15 @@ without touching code.
 
 | Layout | Channels | Pros | Cons |
 |---|---|---|---|
-| **A. Pan/tilt head** (default) | 2 DC drive + servo pan + servo tilt | Tracks faces without moving the body. Best for a desk robot that mostly sits still. | Pan joint needs a bearing or it sags |
+| **A. Pan/tilt head** (simulator default) | 2 DC drive + servo pan + servo tilt | Tracks faces without moving the body. Best for a desk robot that mostly sits still. | Pan joint needs a bearing or it sags |
 | **B. Authentic Vector** | 2 DC drive + servo head tilt + servo lift arm | Exactly what Vector has; the lift is most of its personality. No pan bearing. | Must turn the body to look at you (`shake` wiggles the treads) |
 | **C. Static expressive** | 4 servos: pan, tilt, 2 arms | No drivetrain, no cliff risk, cheapest | Does not drive |
 
 `config/hardware.example.yaml` has all three ready to copy. All three load and report their
-primitives (verified).
+primitives (verified). **A fresh install has no actuators** (`layout: none`, both drivers
+`none`): the motion service opens no GPIO and the interlock has nothing to gate, so a Pi with
+only a screen, camera and speaker runs clean. Declare a layout in `config/hardware.yaml` when
+the parts arrive. The simulator merges layout A in by itself (`robot sim --layout B` for another).
 
 ### 4.2 Configuration
 

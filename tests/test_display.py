@@ -41,6 +41,8 @@ def test_detect_configured_backend_wins():
 def test_detect_desktop_window():
     r = detect_display(DisplayConfig(), probes(environ={"DISPLAY": ":0"}))
     assert r.backend == "window"
+    # a desktop window only exists in this login session: --save must not pin it
+    assert r.session_bound and r.as_local_config() == {"backend": "auto"}
 
 
 def test_detect_kms_prefers_connected_connector():

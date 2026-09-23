@@ -216,7 +216,7 @@ class DcDriverConfig(StrictModel):
     software PWM (roughly 800 Hz, audible, jittery under load).
     """
 
-    type: Literal["tb6612fng", "drv8833", "none"] = "tb6612fng"
+    type: Literal["tb6612fng", "drv8833", "none"] = "none"
     pins: dict[str, int] = Field(
         default_factory=lambda: {
             "pwma": 12,
@@ -233,7 +233,7 @@ class DcDriverConfig(StrictModel):
 
 
 class ServoDriverConfig(StrictModel):
-    type: Literal["pca9685", "gpio_pwm", "none"] = "pca9685"
+    type: Literal["pca9685", "gpio_pwm", "none"] = "none"
     i2c_bus: int = 1
     i2c_address: int = 0x40
     pwm_hz: int = 50
@@ -284,7 +284,7 @@ class GeometryConfig(StrictModel):
 
 
 class ActuatorsConfig(StrictModel):
-    layout: Literal["A", "B", "C", "none"] = "A"
+    layout: Literal["A", "B", "C", "none"] = "none"
     drivers: DriversConfig = DriversConfig()
     channels: dict[str, ChannelConfig] = Field(default_factory=dict)
     geometry: GeometryConfig = GeometryConfig()
@@ -485,6 +485,20 @@ def default_layer_paths(config_dir: Path | None = None) -> list[Path]:
     return [cdir / "hardware.yaml", cdir / "local.yaml"]
 
 
+LAYOUTS = ("A", "B", "C")
+
+
+def example_layout(name: str) -> dict[str, Any]:
+    """The ``actuators`` block for layout A, B or C from the package's ``layouts.yaml``."""
+    if name not in LAYOUTS:
+        raise ValueError(f"layout must be one of {', '.join(LAYOUTS)}, got {name!r}")
+    text = resources.files("robot.data").joinpath("layouts.yaml").read_text(encoding="utf-8")
+    data = yaml.safe_load(text) or {}
+    block = data["layouts"][name]
+    assert isinstance(block, dict)
+    return copy.deepcopy(block)
+
+
 def load_config(
     *,
     config_dir: Path | None = None,
@@ -492,15 +506,20 @@ def load_config(
     overrides: Iterable[str] = (),
     environ: Mapping[str, str] | None = None,
     use_env: bool = True,
+    layout: str | None = None,
 ) -> RobotConfig:
     """Build the merged, validated configuration.
 
     ``overrides`` are ``"section.key=value"`` strings from the CLI. Values that should stay
     strings but look like YAML scalars (``null``, ``yes``) can be quoted: ``a.b='"null"'``.
+    ``layout`` merges one of the example actuator layouts over the files (the simulator and
+    the tests use it; a real robot declares its actuators in ``hardware.yaml`` instead).
     """
     merged: dict[str, Any] = package_defaults()
     for path in [*default_layer_paths(config_dir), *extra_files]:
         deep_merge(merged, load_yaml(path))
+    if layout is not None:
+        deep_merge(merged, {"actuators": example_layout(layout)})
     if use_env:
         deep_merge(merged, env_overrides(environ))
     for item in overrides:

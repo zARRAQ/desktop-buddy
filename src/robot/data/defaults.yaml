@@ -114,50 +114,23 @@ brain:
   rss_budget_mb: 2500
 
 actuators:
-  layout: A            # A pan/tilt head | B tilt + lift arm | C four servos | none
+  # No actuators until you declare them. Copy a layout (A pan/tilt head + drive, B tilt + lift
+  # arm + drive, C four servos) from config/hardware.example.yaml into config/hardware.yaml.
+  # With `none` the motion service opens no GPIO and the safety interlock has nothing to gate.
+  layout: none
   drivers:
     dc:
-      type: tb6612fng  # tb6612fng | drv8833 | none
+      type: none       # tb6612fng | drv8833 | none
       pins: {pwma: 12, ain1: 5, ain2: 6, pwmb: 13, bin1: 14, bin2: 15, standby: 26}
       pwm_hz: 20000
       hardware_pwm: true
     servo:
-      type: pca9685    # pca9685 | gpio_pwm | none
+      type: none       # pca9685 | gpio_pwm | none
       i2c_bus: 1
       i2c_address: 0x40
       pwm_hz: 50
       oe_pin: 16
-  channels:
-    drive_left:
-      role: drive
-      driver: dc
-      motor: a
-      invert: false
-      encoder: {pin_a: 17, pin_b: 27, ticks_per_rev: 700}
-    drive_right:
-      role: drive
-      driver: dc
-      motor: b
-      invert: true
-      encoder: {pin_a: 22, pin_b: 23, ticks_per_rev: 700}
-    head_pan:
-      role: pan
-      driver: servo
-      channel: 0
-      min_deg: -70
-      max_deg: 70
-      center_us: 1500
-      us_per_deg: 10.0
-      max_deg_s: 180
-    head_tilt:
-      role: tilt
-      driver: servo
-      channel: 1
-      min_deg: -30
-      max_deg: 35
-      center_us: 1500
-      us_per_deg: 10.0
-      max_deg_s: 180
+  channels: {}
   geometry:
     wheel_diameter_mm: 40
     track_width_mm: 95

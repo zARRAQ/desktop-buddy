@@ -18,8 +18,25 @@ from robot.core.config import (
 def test_defaults_validate():
     cfg = load_config(config_dir=Path("/nonexistent"), use_env=False)
     assert cfg.display.backend == "auto"
+    # a fresh install has no actuators: nothing claims GPIO, nothing to interlock
+    assert cfg.actuators.layout == "none"
+    assert cfg.actuators.channels == {}
+    assert cfg.actuators.drivers.dc.type == "none" and cfg.actuators.drivers.servo.type == "none"
+
+
+def test_example_layouts_merge_and_match_the_copyable_file():
+    from robot.core.config import LAYOUTS, example_layout
+
+    cfg = load_config(config_dir=Path("/nonexistent"), use_env=False, layout="A")
     assert cfg.actuators.layout == "A"
     assert set(cfg.actuators.channels) == {"drive_left", "drive_right", "head_pan", "head_tilt"}
+    assert load_config(config_dir=Path("/nonexistent"), use_env=False, layout="C").actuators.drivers.dc.type == "none"
+    with pytest.raises(ValueError):
+        load_config(config_dir=Path("/nonexistent"), use_env=False, layout="D")
+    # config/hardware.example.yaml is what users copy; keep it identical to the package data
+    example = yaml.safe_load(Path("config/hardware.example.yaml").read_text())["layouts"]
+    for name in LAYOUTS:
+        assert example[name] == example_layout(name), name
 
 
 def test_layering_local_over_hardware(tmp_path: Path):
@@ -84,3 +101,16 @@ def test_write_local_setting_round_trip(tmp_path: Path):
     cfg = load_config(config_dir=tmp_path, use_env=False)
     assert cfg.display.rotation == 270
     assert cfg.camera.device == "/dev/video2"
+
+
+def test_run_all_child_argv_keeps_override_values():
+    from pathlib import Path
+
+    from robot.cli.common import Ctx
+    from robot.cli.main import child_argv
+
+    c = Ctx(config_dir=Path("/x/config"), overrides=["display.backend=null", "camera.backend=null"], log_level="DEBUG")
+    argv = child_argv(c, "motion", mock=True, enable_mode="pulse")
+    assert argv[-5:] == ["run", "motion", "--mock", "--enable-mode", "pulse"]
+    assert argv[argv.index("--set") + 1] == "display.backend=null"
+    assert argv.count("--set") == 2 and "--config-dir" in argv and "/x/config" in argv

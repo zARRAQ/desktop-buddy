@@ -64,9 +64,12 @@ def sim(
         None, "--brain-endpoint", help="Use a real language model at this OpenAI-compatible URL"
     ),
     shape: str = typer.Option("rect", "--shape", help="Simulated panel shape: rect | round"),
+    layout: str = typer.Option("A", "--layout", help="Simulated actuators: A | B | C | none"),
 ) -> None:
     """Run the whole stack on this machine with a simulated desk, person and hardware."""
     c = get_ctx(ctx)
+    if layout != "none":
+        c.layout = layout
     c.overrides += [
         "display.backend=null",
         f"display.shape={shape}",
@@ -100,7 +103,7 @@ def run(
     c = get_ctx(ctx)
     cfg = c.config()
     if service == "all":
-        raise typer.Exit(_run_all(cfg, sys.argv))
+        raise typer.Exit(_run_all(cfg, c, mock=mock, enable_mode=enable_mode))
     if service == "broker":
         from robot.core.broker import Broker
 
@@ -154,25 +157,41 @@ def run(
     svc.run()
 
 
-def _run_all(cfg: object, argv: list[str]) -> int:
+def child_argv(c: Ctx, service: str, *, mock: bool = False, enable_mode: str | None = None) -> list[str]:
+    """Command line for one service process, rebuilt from the parsed context rather than
+    copied from sys.argv so every ``--set key=value`` keeps its value."""
+    argv = [sys.executable, "-m", "robot.cli.main", "--log-level", c.log_level]
+    if c.config_dir is not None:
+        argv += ["--config-dir", str(c.config_dir)]
+    for override in c.overrides:
+        argv += ["--set", override]
+    argv += ["run", service]
+    if mock:
+        argv.append("--mock")
+    if enable_mode:
+        argv += ["--enable-mode", enable_mode]
+    return argv
+
+
+def _run_all(cfg: object, c: Ctx, *, mock: bool = False, enable_mode: str | None = None) -> int:
     """Spawn broker + every service as child processes; forward Ctrl-C."""
-    base = [sys.executable, "-m", "robot.cli.main"]
-    passthrough = [
-        a for a in argv[1:] if a.startswith("--config-dir") or a.startswith("--set") or a.startswith("--log-level")
-    ]
     procs: list[subprocess.Popen[bytes]] = []
-    extra = [a for a in argv if a in ("--mock",)]
+    names: dict[int, str] = {}
     for name in SERVICES:
         if name == "power" and not getattr(getattr(cfg, "power", None), "enabled", False):
             continue
-        procs.append(subprocess.Popen([*base, *passthrough, "run", name, *extra]))
+        proc = subprocess.Popen(child_argv(c, name, mock=mock, enable_mode=enable_mode))
+        names[proc.pid] = name
+        procs.append(proc)
         time.sleep(0.3 if name == "broker" else 0.05)
     typer.echo(f"started {len(procs)} processes; Ctrl-C to stop")
+    reported: set[int] = set()
     try:
         while True:
             for p in procs:
-                if p.poll() is not None:
-                    typer.secho(f"process {p.args!r} exited with {p.returncode}", fg=typer.colors.YELLOW)
+                if p.poll() is not None and p.pid not in reported:
+                    reported.add(p.pid)
+                    typer.secho(f"service {names[p.pid]} exited with {p.returncode}", fg=typer.colors.YELLOW)
             time.sleep(1.0)
     except KeyboardInterrupt:
         pass

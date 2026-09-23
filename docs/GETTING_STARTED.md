@@ -168,7 +168,8 @@ setup in this guide, expect:
 - `hailo`: SKIP or WARN. Correct, you do not have one.
 - `i2c`, `gpio`, `spi`: PASS, WARN or SKIP are all fine with no hardware attached.
 - `brain`: SKIP. The robot uses scripted replies until you install a language model.
-- `interlock`: PASS, since no motors are configured.
+- `interlock`: PASS, since no motors are configured. A fresh install declares no actuators at
+  all; they are added in `config/hardware.yaml` when you build the body.
 
 Any FAIL: read the text in its row. It says what to fix. If it does not make sense, copy the
 whole table and ask for help with it.
@@ -179,6 +180,12 @@ Then save what was detected so the robot does not have to guess every start:
 uv run robot display detect --save
 uv run robot camera detect --save
 ```
+
+If you are typing inside a desktop (the Raspberry Pi OS with windows, not the black text
+console), the display detector reports `window` and deliberately saves nothing for it: a window
+only exists while you are logged in to that desktop, and the autostart in Step 11 runs without
+one. That is expected. The camera detector saves the backend but not the `/dev/videoN` number,
+because the number changes with plug order; the webcam is found again at each start.
 
 ## Step 8. Try the pieces one at a time
 

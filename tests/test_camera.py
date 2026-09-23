@@ -56,6 +56,7 @@ def test_detect_cascade():
     p2 = CameraProbes(csi_cameras=lambda: [], video_nodes=lambda: nodes)
     d = detect_camera(CameraConfig(), p2)
     assert d.backend == "uvc" and d.device == "/dev/video0"
+    assert d.as_local_config() == {"backend": "uvc"}  # node numbers are not pinned
     assert detect_camera(CameraConfig(device="rtsp://x/y"), p2).backend == "rtsp"
     p3 = CameraProbes(csi_cameras=lambda: [], video_nodes=lambda: [])
     assert detect_camera(CameraConfig(), p3).backend == "null"
@@ -68,3 +69,28 @@ def test_synthetic_camera_frames():
     f = cam.read()
     assert f is not None and f.image.shape == (120, 160, 3) and f.image.dtype == np.uint8
     assert f.seq == 1
+
+
+def test_detect_skips_pi5_internal_nodes_and_prefers_usb():
+    """On a Pi 5 the CSI front end owns /dev/video0-7 and the ISP /dev/video19+; a USB webcam
+    lands in between. First-that-opens picked the ISP; the name and bus filters must not."""
+    pi5 = [VideoNode(f"/dev/video{i}", "rp1-cfe-csi2_ch0", True) for i in range(8)]
+    pi5 += [VideoNode("/dev/video8", "HD Webcam: HD Webcam", True, usb=True)]
+    pi5 += [VideoNode("/dev/video9", "HD Webcam: HD Webcam", False, usb=True)]
+    pi5 += [VideoNode(f"/dev/video{i}", "pispbe-input", True) for i in range(19, 36)]
+    probes = CameraProbes(csi_cameras=lambda: [], video_nodes=lambda: pi5)
+    d = detect_camera(CameraConfig(), probes)
+    assert d.device == "/dev/video8" and "USB" in d.reasons[0]
+    # backend pinned by --save, node left auto: still scans instead of assuming /dev/video0
+    d2 = detect_camera(CameraConfig(backend="uvc"), probes)
+    assert d2.backend == "uvc" and d2.device == "/dev/video8"
+    # a stale saved node that is an internal device is ignored, with a reason
+    d3 = detect_camera(CameraConfig(device="/dev/video23"), probes)
+    assert d3.device == "/dev/video8" and any("video23" in r for r in d3.reasons)
+    # no webcam at all: null, never an internal node
+    internal_only = CameraProbes(csi_cameras=lambda: [], video_nodes=lambda: pi5[:8] + pi5[10:])
+    assert detect_camera(CameraConfig(), internal_only).backend == "null"
+    assert detect_camera(CameraConfig(backend="uvc"), internal_only).backend == "null"
+    # a laptop webcam on the SoC bus (not USB) still works when nothing internal is around
+    laptop = CameraProbes(csi_cameras=lambda: [], video_nodes=lambda: [VideoNode("/dev/video0", "Integrated", True)])
+    assert detect_camera(CameraConfig(), laptop).device == "/dev/video0"
