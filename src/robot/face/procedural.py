@@ -321,3 +321,82 @@ def closed_eyes(face: FaceParams, amount: float) -> FaceParams:
         left=replace(face.left, scale_y=face.left.scale_y * sy, scale_x=face.left.scale_x * sx),
         right=replace(face.right, scale_y=face.right.scale_y * sy, scale_x=face.right.scale_x * sx),
     )
+
+
+# ---------------------------------------------------------------------------
+# Overlays: a mouth while speaking, level bars while listening, dots while thinking.
+# None of these exist in PyCozmo; they are drawn in the same design space so they scale
+# and mask with the eyes. All sit in a strip below the eyes; the animator lifts the eyes a
+# little while an overlay is shown so the two never collide.
+# ---------------------------------------------------------------------------
+
+OVERLAY_Y = 27.0  # centre line of the overlay strip, design units below the face centre
+OVERLAY_EYE_LIFT = 6.0  # how far the eyes move up while an overlay is visible
+MOUTH_WIDTH = 34.0
+MOUTH_MIN_HEIGHT = 2.5
+MOUTH_MAX_HEIGHT = 11.0
+BAR_COUNT = 5
+BAR_WIDTH = 3.2
+BAR_PITCH = 7.0
+BAR_MIN_HEIGHT = 2.0
+BAR_MAX_HEIGHT = 11.0
+DOT_COUNT = 3
+DOT_RADIUS = 2.6
+DOT_PITCH = 9.0
+
+Shaded = tuple[Polygon, float]  # polygon plus brightness in [0, 1]
+
+
+def _capsule(cx: float, cy: float, w: float, h: float) -> Polygon:
+    """Rounded bar centred on (cx, cy); fully round ends when h <= w."""
+    hw, hh = w / 2.0, h / 2.0
+    r = min(hw, hh)
+    pts: Polygon = []
+    pts += _arc(cx - hw + r, cy - hh + r, r, r, 180, 270)
+    pts += _arc(cx + hw - r, cy - hh + r, r, r, 270, 360)
+    pts += _arc(cx + hw - r, cy + hh - r, r, r, 0, 90)
+    pts += _arc(cx - hw + r, cy + hh - r, r, r, 90, 180)
+    return pts
+
+
+def mouth_polygon(openness: float, *, smile: float = 0.6, cy: float = OVERLAY_Y) -> Polygon:
+    """A wide capsule that opens with ``openness`` in [0, 1]; ``smile`` bends the ends up.
+
+    Closed it is a gently curved line; open it rounds into an "o". The curve flattens as the
+    mouth opens so the shape stays convex.
+    """
+    openness = min(1.0, max(0.0, openness))
+    h = MOUTH_MIN_HEIGHT + (MOUTH_MAX_HEIGHT - MOUTH_MIN_HEIGHT) * openness
+    w = MOUTH_WIDTH * (1.0 - 0.3 * openness)
+    pts = _capsule(0.0, cy, w, h)
+    bend = smile * (1.0 - 0.7 * openness)
+    if bend <= 0.0:
+        return pts
+    # corners rise with the square of their distance from the centre, up to 8 units at the ends
+    k = bend * 8.0 / (w / 2.0) ** 2
+    return [(x, y - k * x * x) for x, y in pts]
+
+
+def listening_bars(levels: list[float], *, cy: float = OVERLAY_Y) -> list[Shaded]:
+    """Level-meter bars, one per entry of ``levels`` (each in [0, 1]), centred on x = 0."""
+    n = len(levels)
+    x0 = -(n - 1) * BAR_PITCH / 2.0
+    out: list[Shaded] = []
+    for i, raw in enumerate(levels):
+        lvl = min(1.0, max(0.0, raw))
+        h = BAR_MIN_HEIGHT + (BAR_MAX_HEIGHT - BAR_MIN_HEIGHT) * lvl
+        out.append((_capsule(x0 + i * BAR_PITCH, cy, BAR_WIDTH, h), 0.55 + 0.45 * lvl))
+    return out
+
+
+def thinking_dots(phase: float, *, cy: float = OVERLAY_Y) -> list[Shaded]:
+    """Three dots that light up in turn; ``phase`` in cycles (fractional part is used)."""
+    x0 = -(DOT_COUNT - 1) * DOT_PITCH / 2.0
+    out: list[Shaded] = []
+    for i in range(DOT_COUNT):
+        # each dot peaks a third of a cycle after the previous one
+        local = (phase - i / DOT_COUNT) % 1.0
+        bright = 0.25 + 0.75 * max(0.0, math.cos(local * 2.0 * math.pi)) ** 2
+        r = DOT_RADIUS * (0.8 + 0.3 * bright)
+        out.append((_arc(x0 + i * DOT_PITCH, cy, r, r, 0, 360), bright))
+    return out

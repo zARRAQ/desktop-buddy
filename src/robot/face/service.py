@@ -6,7 +6,7 @@ import time
 
 from robot.core.bus import BusClient
 from robot.core.config import RobotConfig
-from robot.core.messages import Envelope, FaceExpression, FaceLook, FaceState
+from robot.core.messages import Envelope, FaceExpression, FaceLook, FaceMode, FaceState, VoiceSpeaking
 from robot.core.service import Service
 from robot.face import expressions
 from robot.face.animator import FaceAnimator
@@ -18,7 +18,7 @@ from robot.hal.display.pipeline import DisplayPipeline
 
 class FaceService(Service):
     name = "face"
-    subscriptions = ("face.", "orchestrator.state", "safety.estop")
+    subscriptions = ("face.", "orchestrator.state", "safety.estop", "voice.speaking")
 
     def __init__(self, config: RobotConfig, bus: BusClient, *, display: Display | None = None) -> None:
         super().__init__(config, bus)
@@ -66,8 +66,18 @@ class FaceService(Service):
             self.animator.look(look.x, look.y)
         elif env.topic == "face.blink":
             self.animator.blink()
+        elif env.topic == FaceMode.TOPIC:
+            self.animator.set_mode(FaceMode.model_validate(env.data).mode)
         elif env.topic == "safety.estop":
             self.animator.set_expression("surprise", hold_ms=1500)
+        elif env.topic == VoiceSpeaking.TOPIC:
+            # The mouth follows the audio, not the orchestrator: it opens when playback starts
+            # and closes the moment it ends, even if the orchestrator is slow to notice.
+            speaking = VoiceSpeaking.model_validate(env.data)
+            if speaking.state == "start":
+                self.animator.set_mode("speaking")
+            elif self.animator.mode == "speaking":
+                self.animator.set_mode("none")
         elif env.topic == "orchestrator.state":
             state = env.data.get("state")
             if state == "sleep":
@@ -76,6 +86,10 @@ class FaceService(Service):
                 self.animator.set_expression("listening")
             elif state == "thinking":
                 self.animator.set_expression("thinking")
+            if state in ("listening", "thinking", "speaking"):
+                self.animator.set_mode(state)
+            else:
+                self.animator.set_mode("none")
 
     def tick(self, dt: float) -> None:
         if self.pipeline is None or self.renderer is None:
@@ -84,7 +98,9 @@ class FaceService(Service):
         self.animator.quality.saccade_rate = self.quality.saccade_rate
         t0 = time.perf_counter()
         face = self.animator.update(dt)
-        self.renderer.render(face, self.pipeline.surface, antialias=self.quality.antialias)
+        self.renderer.render(
+            face, self.pipeline.surface, antialias=self.quality.antialias, overlay=self.animator.overlay()
+        )
         self.pipeline.present()
         self.quality.record(time.perf_counter() - t0)
         self.tick_hz = self.quality.effective_fps
@@ -100,6 +116,7 @@ class FaceService(Service):
                     fps=round(self.pipeline.fps, 1),
                     quality_level=self.quality.level,
                     backend=self.pipeline.display.info.backend,
+                    mode=self.animator.mode,
                 )
             )
 

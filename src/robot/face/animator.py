@@ -8,20 +8,49 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from robot.core.config import FaceConfig
 from robot.face import expressions
-from robot.face.procedural import FaceParams, closed_eyes, ease_in_out, lerp
+from robot.face.procedural import (
+    BAR_COUNT,
+    OVERLAY_EYE_LIFT,
+    Y_FACTOR,
+    FaceParams,
+    closed_eyes,
+    ease_in_out,
+    lerp,
+)
 
 LOOK_RANGE_X = 45.0  # design units at look x = +-1 (before X_FACTOR)
 LOOK_RANGE_Y = 60.0
+
+MODES: tuple[str, ...] = ("none", "listening", "thinking", "speaking")
+
+# Bars bob at these rates (Hz) with these phases so the meter looks alive without a microphone
+_BAR_RATES = (1.9, 2.7, 3.3, 2.3, 1.6)
+_BAR_PHASES = (0.0, 1.3, 2.1, 0.7, 2.9)
 
 
 @dataclass
 class QualityFlags:
     idle_drift: bool = True
     saccade_rate: float = 1.0  # 1.0 normal, 0.5 half rate
+
+
+@dataclass
+class Overlay:
+    """What to draw below the eyes this frame. ``blend`` fades the overlay in and out."""
+
+    mode: str = "none"
+    blend: float = 0.0
+    mouth_open: float = 0.0  # speaking: 0 closed .. 1 wide open
+    levels: list[float] = field(default_factory=list)  # listening: one per bar
+    phase: float = 0.0  # thinking: cycles
+
+    @property
+    def visible(self) -> bool:
+        return self.mode != "none" and self.blend > 0.02
 
 
 class FaceAnimator:
@@ -50,6 +79,12 @@ class FaceAnimator:
         self._sacc_target = (0.0, 0.0)
         self._next_saccade = self._schedule(cfg.saccade_interval_s)
         self.blinks = 0
+        # overlays
+        self.mode = "none"
+        self._mode_blend = 0.0
+        self._mode_since = 0.0
+        self.speech_level: float | None = None  # set from real TTS amplitude when available
+        self.mic_level: float | None = None
 
     # -- inputs ----------------------------------------------------------------------
     def set_expression(self, name: str, *, hold_ms: int | None = None) -> None:
@@ -75,6 +110,18 @@ class FaceAnimator:
     def blink(self) -> None:
         if self._blink_t is None:
             self._blink_t = 0.0
+
+    def set_mode(self, mode: str) -> None:
+        """Show the listening bars, thinking dots or mouth; ``none`` hides them."""
+        if mode not in MODES:
+            raise KeyError(mode)
+        if mode == self.mode:
+            return
+        self.mode = mode
+        self._mode_since = self.time
+        if mode == "none":
+            self.speech_level = None
+            self.mic_level = None
 
     # -- update ----------------------------------------------------------------------
     def current_target(self) -> FaceParams:
@@ -138,7 +185,45 @@ class FaceAnimator:
             face.right.scale_x *= 1.0 - squint
         if blink_amount > 0.0:
             face = closed_eyes(face, blink_amount)
+
+        # overlays fade in and out over the same time as an expression transition
+        step = dt * 1000.0 / max(self.cfg.transition_ms, 1)
+        target = 0.0 if self.mode == "none" else 1.0
+        self._mode_blend += max(-step, min(step, target - self._mode_blend))
+        if self._mode_blend > 0.0:
+            face.center_y -= OVERLAY_EYE_LIFT * ease_in_out(self._mode_blend) / Y_FACTOR
         return face
+
+    def overlay(self) -> Overlay:
+        """The overlay for the frame produced by the last :meth:`update`."""
+        ov = Overlay(mode=self.mode, blend=ease_in_out(self._mode_blend))
+        if not ov.visible:
+            return ov
+        t = self.time - self._mode_since
+        if self.mode == "speaking":
+            if self.speech_level is not None:
+                ov.mouth_open = min(1.0, max(0.0, self.speech_level))
+            else:
+                # syllables at about 4 Hz inside a slower loudness envelope, with brief pauses
+                syllable = max(0.0, math.sin(2.0 * math.pi * 4.1 * t))
+                envelope = 0.55 + 0.45 * math.sin(2.0 * math.pi * 0.9 * t + 1.0)
+                pause = 0.0 if math.sin(2.0 * math.pi * 0.37 * t) < -0.85 else 1.0
+                ov.mouth_open = syllable * envelope * pause
+        elif self.mode == "listening":
+            if self.mic_level is not None:
+                lvl = min(1.0, max(0.0, self.mic_level))
+                ov.levels = [
+                    lvl * (0.6 + 0.4 * math.sin(2.0 * math.pi * r * t + p))
+                    for r, p in zip(_BAR_RATES, _BAR_PHASES, strict=True)
+                ][:BAR_COUNT]
+            else:
+                ov.levels = [
+                    0.5 + 0.5 * math.sin(2.0 * math.pi * r * t + p)
+                    for r, p in zip(_BAR_RATES, _BAR_PHASES, strict=True)
+                ][:BAR_COUNT]
+        elif self.mode == "thinking":
+            ov.phase = t * 0.8
+        return ov
 
     def _schedule(self, interval: tuple[float, float]) -> float:
         lo, hi = interval

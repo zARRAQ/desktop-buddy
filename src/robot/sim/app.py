@@ -15,7 +15,7 @@ from robot.brain.service import BrainService
 from robot.core import paths
 from robot.core.bus import LocalHub
 from robot.core.config import RobotConfig
-from robot.core.messages import Envelope, FaceExpression, MotionCommand
+from robot.core.messages import Envelope, FaceExpression, FaceMode, MotionCommand
 from robot.core.service import Service, ServiceThread
 from robot.face import expressions
 from robot.face.service import FaceService
@@ -94,6 +94,7 @@ class Simulator:
         self.gpio = MockGpioBackend()
         shape = "round" if config.display.shape == "round" else "rect"
         self.face_display = NullDisplay(FACE_PX, FACE_PX, shape=shape)
+        self.mode_preview = "none"
         self.threads: dict[str, ServiceThread] = {}
         self.services: dict[str, Service] = {}
         self._utter = 0
@@ -162,6 +163,14 @@ class Simulator:
 
     def expression(self, name: str) -> None:
         self.probe.publish_payload(FaceExpression(name=name))
+
+    def cycle_mode(self) -> None:
+        """Preview the listening bars, thinking dots and mouth without a conversation."""
+        from robot.face.animator import MODES
+
+        self.mode_preview = MODES[(MODES.index(self.mode_preview) + 1) % len(MODES)]
+        self.probe.publish_payload(FaceMode(mode=self.mode_preview))
+        self.world.events.append(f"face mode preview: {self.mode_preview}")
 
     def nudge(self, key: str) -> None:
         cmd = {
@@ -274,6 +283,8 @@ class Simulator:
             self.nudge(chr(key))
         elif pygame.K_1 <= key <= pygame.K_9:
             self.expression(expressions.NUMBER_KEYS[key - pygame.K_0])
+        elif key == pygame.K_m:
+            self.cycle_mode()
         return True
 
     # -- drawing ----------------------------------------------------------------------------
@@ -281,7 +292,7 @@ class Simulator:
         scr.fill((18, 18, 22))
         if self.face_display.last is not None:
             scr.blit(self.face_display.last, (0, 40))
-        _text(scr, big, "FACE  (1-9 expressions)", (8, 10))
+        _text(scr, big, "FACE  (1-9 expressions, M mode)", (8, 10))
         ox, oy = FACE_PX, 0
         pygame.draw.rect(scr, (30, 30, 36), pygame.Rect(ox, oy, DESK_PX, HEIGHT))
         scale = 0.42

@@ -140,12 +140,21 @@ class FaceLook(Payload):
     y: float
 
 
+class FaceMode(Payload):
+    """Force an overlay: listening bars, thinking dots or the speaking mouth. The face
+    service normally derives this from ``orchestrator.state`` and ``voice.speaking``."""
+
+    TOPIC = "face.mode"
+    mode: Literal["none", "listening", "thinking", "speaking"]
+
+
 class FaceState(Payload):
     TOPIC = "face.state"
     expression: str
     fps: float
     quality_level: int
     backend: str
+    mode: str = "none"
 
 
 # --- motion --------------------------------------------------------------------------

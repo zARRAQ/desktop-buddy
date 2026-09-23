@@ -45,6 +45,8 @@ face:
   idle_drift: true
   transition_ms: 220
   antialias: true
+  indicators: true   # level bars while listening, dots while thinking
+  mouth: true        # animated mouth, shown only while speaking
 
 camera:
   backend: auto        # auto | csi | uvc | rtsp | file | synthetic | null

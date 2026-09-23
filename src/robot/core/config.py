@@ -96,6 +96,8 @@ class FaceConfig(StrictModel):
     idle_drift: bool = True
     transition_ms: int = 220
     antialias: bool = True
+    indicators: bool = Field(default=True, description="Level bars while listening, dots while thinking")
+    mouth: bool = Field(default=True, description="Animated mouth while speaking")
 
 
 CameraBackend = Literal["auto", "csi", "uvc", "rtsp", "file", "synthetic", "null"]

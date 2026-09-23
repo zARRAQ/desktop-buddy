@@ -30,7 +30,7 @@ uv run robot sim
 
 Version 0.1: the simulator, face renderer, bus, configuration, actuator abstraction, safety
 interlock, CPU face recognition (verified on a real photo), memory, brain client, voice state
-machine and CLI run and are tested on a laptop: 88 tests, ruff, mypy strict and import-linter
+machine and CLI run and are tested on a laptop: 94 tests, ruff, mypy strict and import-linter
 all pass, and CI runs a headless end-to-end simulation on Python 3.11 to 3.13.
 Hardware backends (Hailo, SPI panels, GPIO, I2S audio, systemd deployment) are written against
 the documented vendor APIs but have **not yet been exercised on a real Pi 5**. `docs/REVIEW.md`

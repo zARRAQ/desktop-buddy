@@ -118,6 +118,14 @@ renderer.
 * `color: mono1` switches to a two-colour preset with no antialiasing. A dithered soft-edged eye
   on a 1-bit OLED looks like static.
 * Panels under 160 px on the short edge drop antialiasing.
+* **State overlays** live in a strip below the eyes and scale and mask with them: five bobbing
+  level bars while listening, three dots lighting in turn while thinking, and a mouth that is
+  drawn only while speech is playing. The eyes lift 6 design units while an overlay is shown
+  so the two never touch. The face service derives the overlay from `orchestrator.state` and
+  the mouth from `voice.speaking` start/end, so it tracks the audio, not the state machine.
+  `face.mode` forces one for tests. `face.indicators: false` and `face.mouth: false` turn
+  them off. When a TTS engine reports amplitude the animator's `speech_level` drives the
+  mouth; until then a synthetic 4 Hz syllable envelope does.
 * Rotation and flip are applied as a final surface transform, so a panel mounted sideways in the
   head costs one config line. `robot display test --pattern` shows a block "F" so you can see
   rotation and mirroring in one glance.

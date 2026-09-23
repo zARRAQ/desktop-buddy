@@ -90,18 +90,21 @@ def display_test(
             PanelGeometry(pipe.logical_w, pipe.logical_h, shape=shape, color=color, scale_mode=cfg.display.scale_mode),
         )
         anim = FaceAnimator(cfg.face)
-        names = expressions.names()
-        per = max(0.8, seconds / len(names))
+        # every expression, then the three overlays on a neutral face
+        steps = [(name, "none") for name in expressions.names()]
+        steps += [("neutral", mode) for mode in ("listening", "thinking", "speaking")]
+        per = max(0.8, seconds / len(steps))
         last = time.monotonic()
-        for name in names:
+        for name, mode in steps:
             anim.set_expression(name)
-            typer.echo(f"  {name}")
+            anim.set_mode(mode)
+            typer.echo(f"  {name}" + (f" + {mode}" if mode != "none" else ""))
             until = time.monotonic() + per
             while time.monotonic() < until:
                 now = time.monotonic()
                 face = anim.update(now - last)
                 last = now
-                renderer.render(face, pipe.surface)
+                renderer.render(face, pipe.surface, overlay=anim.overlay())
                 times.append(pipe.present())
                 for ev in pipe.pump_events():
                     if ev.type == pygame.QUIT:

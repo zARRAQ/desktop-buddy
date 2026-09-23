@@ -226,3 +226,154 @@ def test_quality_controller_degrades_and_recovers():
         t += 1 / 30
         q.record(0.005, now=t)
     assert q.level < level
+
+
+# -- overlays: mouth while speaking, bars while listening, dots while thinking -------------
+
+
+def _lit_below(surface: pygame.Surface, y_from: int) -> int:
+    """Non-background pixels in the strip below ``y_from`` (the overlay area)."""
+    arr = pygame.surfarray.pixels3d(surface)
+    return int((arr[:, y_from:, :].sum(axis=2) > 0).sum())
+
+
+def _settled(anim: FaceAnimator, steps: int = 30, dt: float = 0.02):
+    for _ in range(steps):
+        face = anim.update(dt)
+    return face
+
+
+def test_overlay_modes_fade_in_and_out_and_lift_eyes():
+    cfg = FaceConfig(idle_drift=False, saccade_interval_s=(100, 100), blink_interval_s=(100, 100))
+    anim = FaceAnimator(cfg, rng=random.Random(0))
+    assert not anim.overlay().visible
+    rest = _settled(anim)
+    anim.set_mode("speaking")
+    anim.update(0.02)
+    ov = anim.overlay()
+    assert 0.0 < ov.blend < 1.0  # fading in
+    lifted = _settled(anim)
+    assert anim.overlay().blend == pytest.approx(1.0)
+    assert lifted.center_y < rest.center_y  # eyes move up to make room
+    anim.set_mode("none")
+    back = _settled(anim)
+    assert not anim.overlay().visible
+    assert back.center_y == pytest.approx(rest.center_y, abs=1e-6)
+    with pytest.raises(KeyError):
+        anim.set_mode("singing")
+
+
+def test_mouth_only_while_speaking(surface_480):
+    cfg = FaceConfig(idle_drift=False, saccade_interval_s=(100, 100), blink_interval_s=(100, 100))
+    anim = FaceAnimator(cfg, rng=random.Random(0))
+    r = FaceRenderer(cfg, PanelGeometry(480, 480))
+    # y of the overlay strip on a 480 panel: centre 240 + 27 * (480/128*1.15) ~ 356; check below 330
+    strip = 330
+    _settled(anim)
+    r.render(anim.update(0.02), surface_480, overlay=anim.overlay())
+    assert _lit_below(surface_480, strip) == 0
+
+    anim.set_mode("speaking")
+    _settled(anim)
+    opens = []
+    for _ in range(40):
+        face = anim.update(0.02)
+        ov = anim.overlay()
+        opens.append(ov.mouth_open)
+        r.render(face, surface_480, overlay=ov)
+        assert _lit_below(surface_480, strip) > 0
+    assert max(opens) - min(opens) > 0.3  # it moves
+    # a real TTS amplitude overrides the synthetic envelope
+    anim.speech_level = 1.0
+    anim.update(0.02)
+    assert anim.overlay().mouth_open == 1.0
+    anim.set_mode("none")
+    _settled(anim)
+    r.render(anim.update(0.02), surface_480, overlay=anim.overlay())
+    assert _lit_below(surface_480, strip) == 0
+
+
+def test_listening_and_thinking_indicators_render_and_differ(surface_480):
+    cfg = FaceConfig(idle_drift=False, saccade_interval_s=(100, 100), blink_interval_s=(100, 100))
+    anim = FaceAnimator(cfg, rng=random.Random(0))
+    r = FaceRenderer(cfg, PanelGeometry(480, 480))
+    strip = 330
+    anim.set_mode("listening")
+    face = _settled(anim)
+    ov = anim.overlay()
+    assert len(ov.levels) == 5
+    r.render(face, surface_480, overlay=ov)
+    bars = pygame.surfarray.array3d(surface_480)[:, strip:, :].copy()
+    assert bars.sum() > 0
+
+    anim.set_mode("thinking")
+    face = _settled(anim)
+    ov = anim.overlay()
+    r.render(face, surface_480, overlay=ov)
+    dots = pygame.surfarray.array3d(surface_480)[:, strip:, :].copy()
+    assert dots.sum() > 0
+    assert (bars != dots).any()
+    # the dots cycle: brightness pattern changes over time
+    anim.update(0.4)
+    r.render(anim.update(0.02), surface_480, overlay=anim.overlay())
+    later = pygame.surfarray.array3d(surface_480)[:, strip:, :].copy()
+    assert (later != dots).any()
+
+    # config switches
+    quiet = FaceRenderer(FaceConfig(indicators=False, mouth=False), PanelGeometry(480, 480))
+    quiet.render(face, surface_480, overlay=anim.overlay())
+    assert _lit_below(surface_480, strip) == 0
+    anim.set_mode("speaking")
+    quiet.render(_settled(anim), surface_480, overlay=anim.overlay())
+    assert _lit_below(surface_480, strip) == 0
+
+
+def test_overlays_on_mono_and_round_panels():
+    from robot.face.animator import MODES
+
+    pygame.init()
+    for panel in (PanelGeometry(128, 64, color="mono1"), PanelGeometry(240, 240, shape="round")):
+        surf = pygame.Surface((panel.width, panel.height))
+        r = FaceRenderer(FaceConfig(), panel)
+        anim = FaceAnimator(FaceConfig(), rng=random.Random(0))
+        for mode in MODES:
+            anim.set_mode(mode)
+            r.render(_settled(anim), surf, overlay=anim.overlay())
+            if panel.is_mono:
+                arr = pygame.surfarray.pixels3d(surf)
+                assert set(map(int, arr.reshape(-1))) <= {0, 255}
+
+
+def test_face_service_maps_bus_topics_to_modes(config, hub):
+    from robot.core.messages import FaceMode, OrchestratorState, VoiceSpeaking
+    from robot.face.service import FaceService
+    from robot.hal.display.null import NullDisplay
+
+    svc = FaceService(config, hub.client("face"), display=NullDisplay(128, 128))
+    svc.bus.subscribe(*svc.subscriptions)
+    svc.setup()
+    probe = hub.client("probe")
+
+    def pump() -> None:
+        while (env := svc.bus.recv(0)) is not None:
+            svc.on_message(env)
+
+    probe.publish_payload(OrchestratorState(state="listening"))
+    pump()
+    assert svc.animator.mode == "listening"
+    assert svc.animator.expression == "listening"
+    probe.publish_payload(OrchestratorState(state="speaking"))
+    probe.publish_payload(VoiceSpeaking(state="end"))
+    pump()
+    assert svc.animator.mode == "none"
+    probe.publish_payload(VoiceSpeaking(state="start"))
+    pump()
+    assert svc.animator.mode == "speaking"
+    probe.publish_payload(OrchestratorState(state="attending"))
+    pump()
+    assert svc.animator.mode == "none"
+    probe.publish_payload(FaceMode(mode="thinking"))
+    pump()
+    assert svc.animator.mode == "thinking"
+    svc.tick(0.02)
+    svc.teardown()

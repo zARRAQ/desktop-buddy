@@ -49,6 +49,7 @@ log. The robot notices the person, greets them, and answers with the scripted br
 | N | Toggle the person between known ("Ann") and stranger; a stranger is asked their name |
 | E | Hide / show the person |
 | 1 to 9 | Force an expression |
+| M | Cycle the state overlays: listening bars, thinking dots, speaking mouth, off |
 | K | Kill the safety supervisor: the enable line falls and motion refuses to drive |
 | R | Reset the world and restart the supervisor |
 | Esc / Q | Quit |

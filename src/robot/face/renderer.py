@@ -17,7 +17,17 @@ import pygame
 import pygame.gfxdraw
 
 from robot.core.config import FaceConfig
-from robot.face.procedural import DESIGN_HEIGHT, DESIGN_WIDTH, FaceParams, Polygon, face_shapes
+from robot.face.animator import Overlay
+from robot.face.procedural import (
+    DESIGN_HEIGHT,
+    DESIGN_WIDTH,
+    FaceParams,
+    Polygon,
+    face_shapes,
+    listening_bars,
+    mouth_polygon,
+    thinking_dots,
+)
 
 log = logging.getLogger(__name__)
 
@@ -185,7 +195,14 @@ class FaceRenderer:
         pygame.draw.circle(mask, (0, 0, 0, 0), (w // 2, h // 2), r)
         return mask
 
-    def render(self, face: FaceParams, surface: pygame.Surface, *, antialias: bool | None = None) -> None:
+    def render(
+        self,
+        face: FaceParams,
+        surface: pygame.Surface,
+        *,
+        antialias: bool | None = None,
+        overlay: Overlay | None = None,
+    ) -> None:
         aa = self.cfg.antialias if antialias is None else antialias
         if self.panel.is_mono or self.panel.is_tiny:
             aa = False
@@ -195,8 +212,29 @@ class FaceRenderer:
             self._polygon(surface, self.transform.apply(eye.fill), self.eye_color, aa)
             for occ in eye.occluders:
                 self._polygon(surface, self.transform.apply(occ), self.bg_color, aa)
+        if overlay is not None and overlay.visible:
+            self._render_overlay(overlay, surface, aa)
         if self._mask is not None:
             surface.blit(self._mask, (0, 0))
+
+    def _render_overlay(self, ov: Overlay, surface: pygame.Surface, aa: bool) -> None:
+        if ov.mode == "speaking":
+            if not self.cfg.mouth:
+                return
+            self._polygon(surface, self.transform.apply(mouth_polygon(ov.mouth_open)), self._shade(ov.blend), aa)
+            return
+        if not self.cfg.indicators:
+            return
+        shaded = listening_bars(ov.levels) if ov.mode == "listening" else thinking_dots(ov.phase)
+        for poly, bright in shaded:
+            self._polygon(surface, self.transform.apply(poly), self._shade(bright * ov.blend), aa)
+
+    def _shade(self, brightness: float) -> Color:
+        """Eye colour mixed toward the background; mono panels get a hard threshold."""
+        b = min(1.0, max(0.0, brightness))
+        if self.panel.is_mono:
+            return self.eye_color if b >= 0.5 else self.bg_color
+        return tuple(round(bg + (fg - bg) * b) for fg, bg in zip(self.eye_color, self.bg_color, strict=True))  # type: ignore[return-value]
 
     @staticmethod
     def _polygon(surface: pygame.Surface, pts: list[tuple[int, int]], color: Color, aa: bool) -> None:
