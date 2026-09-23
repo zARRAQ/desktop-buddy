@@ -6,6 +6,9 @@ Two paths. Pick one.
   and no parts. Start here.
 - **[Path B: Raspberry Pi 5](#path-b-raspberry-pi-5)** deploys to real hardware.
 
+New to Linux? [GETTING_STARTED.md](GETTING_STARTED.md) walks Path B one keystroke at a time
+with the simplest hardware (HDMI screen, USB webcam, USB speakerphone).
+
 ---
 
 ## Path A: laptop, no hardware

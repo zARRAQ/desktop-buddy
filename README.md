@@ -13,6 +13,7 @@ Nothing leaves the robot. No cloud, no accounts.
 |---|---|
 | Run the full simulator on my laptop in five minutes | [docs/INSTALL.md](docs/INSTALL.md) Path A |
 | Put it on a Raspberry Pi 5 | [docs/INSTALL.md](docs/INSTALL.md) Path B |
+| Put it on a Raspberry Pi 5 and I have never used Linux | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) |
 | Know what to buy and how to wire it | [docs/HARDWARE.md](docs/HARDWARE.md) |
 | Understand how any screen, camera or actuator layout is supported | [docs/HARDWARE_ABSTRACTION.md](docs/HARDWARE_ABSTRACTION.md) |
 | See the architecture, process model and build phases | [docs/PLAN.md](docs/PLAN.md) |
