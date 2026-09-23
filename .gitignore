@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+
+# Per-robot configuration and calibration. Never commit these.
+config/local.yaml
+config/hardware.yaml
+
+# Downloaded models, memory database, recordings
+models/
+*.gguf
+*.hef
+*.onnx
+*.sqlite
+*.sqlite-journal
+recordings/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+.DS_Store

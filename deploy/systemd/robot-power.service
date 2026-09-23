@@ -1,0 +1,21 @@
+[Unit]
+Description=Robot service: power monitor (INA219)
+PartOf=robot.target
+After=robot-broker.service
+Requires=robot-broker.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=@USER@
+Group=@USER@
+SupplementaryGroups=i2c
+WorkingDirectory=@REPO@
+EnvironmentFile=-@REPO@/config/robot.env
+ExecStart=@VENV@/bin/robot run power
+Restart=always
+RestartSec=5
+WatchdogSec=60
+
+[Install]
+WantedBy=robot.target
