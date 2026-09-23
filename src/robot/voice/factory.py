@@ -38,16 +38,25 @@ def voice_models_dir() -> Path:
 def build_engines(cfg: VoiceConfig, *, fake: bool = False) -> VoiceEngines:
     if fake:
         return VoiceEngines(SilentSource(cfg.audio.block_ms), NullSink(), FakeWake(), EnergyVad(), FakeStt(), FakeTts())
+    # Microphone and speaker are opened independently: a speaker without a microphone (or
+    # the other way round) is a normal state on a half-built robot, not an error.
     source: AudioSource
     sink: AudioSink
     try:
-        from robot.voice.audio import SounddeviceSink, SounddeviceSource
+        from robot.voice.audio import SounddeviceSource
 
         source = SounddeviceSource(cfg.audio.input_device, cfg.audio.block_ms, cfg.audio.sample_rate)
-        sink = SounddeviceSink(cfg.audio.output_device)
     except Exception as exc:
-        log.warning("no audio devices (%s); voice runs with a silent source", exc)
-        source, sink = SilentSource(cfg.audio.block_ms), NullSink()
+        log.warning("no microphone (%s); voice cannot hear until one is plugged in", exc)
+        source = SilentSource(cfg.audio.block_ms)
+    try:
+        from robot.voice.audio import SounddeviceSink
+
+        sink = SounddeviceSink(cfg.audio.output_device)
+        sink.check()
+    except Exception as exc:
+        log.warning("no speaker (%s); speech is logged, not played", exc)
+        sink = NullSink()
     return VoiceEngines(source, sink, _wake(cfg), _vad(), _stt(cfg), _tts(cfg))
 
 

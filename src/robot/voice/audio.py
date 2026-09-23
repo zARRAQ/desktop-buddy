@@ -52,6 +52,10 @@ class SounddeviceSink(AudioSink):
         self._sd = sd
         self.device = device
 
+    def check(self) -> None:
+        """Raise now, at construction time, if there is no usable output device."""
+        self._sd.check_output_settings(device=self.device, channels=1)
+
     def play(self, samples: np.ndarray, sample_rate: int) -> None:
         self._sd.play(samples.astype(np.float32), sample_rate, device=self.device, blocking=True)
 
