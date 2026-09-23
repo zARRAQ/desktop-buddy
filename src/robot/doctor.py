@@ -268,6 +268,25 @@ def check_brain(cfg: RobotConfig) -> Result:
     )
 
 
+def check_interlock(cfg: RobotConfig) -> Result:
+    from robot.safety.service import has_drivetrain
+
+    if not has_drivetrain(cfg):
+        return Result(
+            "interlock",
+            PASS,
+            f"no drivetrain configured; enable line GPIO{cfg.safety.enable_pin} in {cfg.safety.enable_mode} mode",
+        )
+    if cfg.safety.enable_mode == "pulse":
+        return Result("interlock", PASS, "pulse mode: confirm with `robot safety killtest` before untethered use")
+    return Result(
+        "interlock",
+        WARN,
+        "drivetrain configured but safety.enable_mode is level: a killed supervisor leaves the motors enabled. "
+        "Fit the pulse watchdog (HARDWARE.md 5.3), set safety.enable_mode: pulse, run `robot safety killtest`",
+    )
+
+
 def check_memory(cfg: RobotConfig) -> Result:
     from robot.memory import Memory
 
@@ -294,6 +313,7 @@ CHECKS: tuple[Check, ...] = (
     check_spi,
     check_thermal,
     check_brain,
+    check_interlock,
     check_memory,
 )
 

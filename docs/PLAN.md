@@ -158,7 +158,8 @@ The enable line has two modes. `level` holds GPIO26 high while allowed; a SIGKIL
 leaves the pin at its last level (a Raspberry Pi does not reset outputs when a process dies),
 so `level` alone is not a failsafe. `pulse` emits a square wave that a hardware pulse watchdog
 turns into the STBY level; when the pulses stop for ~100 ms, the motors stop. `robot safety
-killtest` measures the real behaviour of your wiring. Build the watchdog (`HARDWARE.md` 5.3) before
+killtest` measures the real behaviour of your wiring, and `robot doctor` warns whenever a
+drivetrain is configured with `safety.enable_mode: level`. Build the watchdog (`HARDWARE.md` 5.3) before
 the robot is ever untethered on a desk.
 
 Servo protections are in the HAL below any caller: hard angle clamps, slew limits, and auto-relax

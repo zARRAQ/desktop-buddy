@@ -189,3 +189,21 @@ def test_motion_gestures_and_layout_gating(config: RobotConfig, hub: LocalHub):
     assert motion.refused == 1
     assert m.drive is not None and m.drive.left.command == 0
     motion.teardown()
+
+
+def test_enable_mode_comes_from_config_and_doctor_warns(config: RobotConfig, tmp_path):
+    from robot.core.config import load_config
+    from robot.doctor import PASS, WARN, check_interlock
+    from robot.safety.service import has_drivetrain
+
+    assert has_drivetrain(config)
+    assert check_interlock(config).status == WARN  # layout A in level mode
+    pulse_cfg = load_config(config_dir=tmp_path, use_env=False, overrides=["safety.enable_mode=pulse"])
+    assert check_interlock(pulse_cfg).status == PASS
+    no_drive = load_config(config_dir=tmp_path, use_env=False, overrides=["actuators.drivers.dc.type=none"])
+    assert not has_drivetrain(no_drive) and check_interlock(no_drive).status == PASS
+    gpio = MockGpioBackend()
+    svc = SafetyService(pulse_cfg, LocalHub().client("s"), gpio=gpio, cliff=MockCliffSensors(["front"]), imu=MockImu())
+    assert svc._mode == "pulse"
+    svc2 = SafetyService(pulse_cfg, LocalHub().client("s"), gpio=gpio, enable_mode="level")
+    assert svc2._mode == "level"  # explicit CLI override still wins

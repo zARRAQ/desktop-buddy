@@ -3,6 +3,14 @@
 # Pins follow docs/HARDWARE.md section 5.2. GPIO26 (standby) belongs to the safety
 # supervisor and is never driven by motion.
 
+# Any layout with a drivetrain (A, B) should run the enable line in pulse mode through the
+# hardware pulse watchdog described in docs/HARDWARE.md 5.3. Put this next to the actuators block:
+#
+# safety:
+#   enable_mode: pulse
+#
+# Layout C has no motors and can stay on `level`.
+
 layouts:
   # A. Pan/tilt head + two drive motors (default). Face tracking without moving the body.
   A:

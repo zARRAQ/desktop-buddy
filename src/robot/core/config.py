@@ -320,6 +320,14 @@ class ImuConfig(StrictModel):
 
 class SafetyConfig(StrictModel):
     enable_pin: int = 26
+    enable_mode: Literal["level", "pulse"] = Field(
+        default="level",
+        description=(
+            "level: GPIO26 held high while allowed (a killed supervisor leaves it high). "
+            "pulse: square wave into the hardware pulse watchdog (HARDWARE.md 5.3), the only "
+            "true failsafe. Use pulse on any build with a drivetrain."
+        ),
+    )
     heartbeat_hz: float = Field(
         default=100.0,
         description=(

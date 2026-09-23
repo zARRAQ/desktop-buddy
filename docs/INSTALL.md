@@ -291,10 +291,10 @@ uv run robot safety killtest
 
 Starts a process that drives the line high, SIGKILLs it, and measures how long the line takes
 to fall. **Expect this to FAIL with a bare wire**: a Raspberry Pi keeps a GPIO at its last level
-when its owner dies. That is the point of the test. Build the pulse watchdog (`HARDWARE.md` 5.3),
-run the supervisor with `--enable-mode pulse` (set `ExecStart` in `robot-safety.service`, or
-`robot run safety --enable-mode pulse`), and run the killtest again. It must pass before the
-robot runs untethered on a desk.
+when its owner dies. That is the point of the test. Build the pulse watchdog (`HARDWARE.md` 5.3), set
+`safety.enable_mode: pulse` in `config/hardware.yaml`, and run the killtest again. It must
+pass before the robot runs untethered on a desk. `robot doctor` warns (row `interlock`) while a
+drivetrain is configured in `level` mode, and so does the safety service at startup.
 
 ### B11. Install as a service
 

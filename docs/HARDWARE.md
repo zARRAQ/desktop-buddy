@@ -233,7 +233,7 @@ is ever powered.
 
 A Raspberry Pi GPIO keeps its last level when the process driving it is killed. A supervisor
 that simply holds GPIO26 high can therefore die and leave the motors enabled. To get a true
-failsafe, the supervisor emits a **square wave** on GPIO26 (`--enable-mode pulse`, 100 Hz) and a
+failsafe, the supervisor emits a **square wave** on GPIO26 (`safety.enable_mode: pulse`, 100 Hz) and a
 missing-pulse detector converts it to a steady STBY level that collapses within about 110 ms of
 the last edge.
 

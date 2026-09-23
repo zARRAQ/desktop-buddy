@@ -92,8 +92,8 @@ def run(
     ctx: typer.Context,
     service: str = typer.Argument(..., help="One of: " + ", ".join(SERVICES) + ", all"),
     mock: bool = typer.Option(False, "--mock", help="Force mock GPIO/I2C (develop motion on a laptop)"),
-    enable_mode: str = typer.Option(
-        "level", "--enable-mode", help="Safety enable line: level | pulse (see HARDWARE.md)"
+    enable_mode: str | None = typer.Option(
+        None, "--enable-mode", help="Override safety.enable_mode: level | pulse (see HARDWARE.md 5.3)"
     ),
 ) -> None:
     """Run one service process (what the systemd units call), or `all` for a quick full start."""

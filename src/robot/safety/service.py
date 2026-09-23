@@ -15,6 +15,12 @@ from robot.hal.sensors.imu import Imu, MockImu
 from robot.safety.supervisor import EnableLine, Supervisor
 
 
+def has_drivetrain(config: RobotConfig) -> bool:
+    return config.actuators.drivers.dc.type != "none" and any(
+        c.driver == "dc" for c in config.actuators.channels.values()
+    )
+
+
 class SafetyService(Service):
     name = "safety"
     subscriptions = ("motion.heartbeat", "safety.command")
@@ -28,7 +34,7 @@ class SafetyService(Service):
         i2c: I2cBus | None = None,
         cliff: CliffSensors | None = None,
         imu: Imu | None = None,
-        enable_mode: str = "level",
+        enable_mode: str | None = None,
     ) -> None:
         super().__init__(config, bus)
         self.tick_hz = max(config.safety.cliff.poll_hz, 10.0)
@@ -36,7 +42,7 @@ class SafetyService(Service):
         self._i2c = i2c
         self._cliff = cliff
         self._imu = imu
-        self._mode = enable_mode
+        self._mode = enable_mode or config.safety.enable_mode
         self.supervisor: Supervisor | None = None
         self._last_publish = 0.0
         self._was_enabled: bool | None = None
@@ -59,6 +65,11 @@ class SafetyService(Service):
         )
         self.supervisor = Supervisor(self.config.safety, line, cliff=cliff, imu=imu)
         self.log.info("enable line GPIO%d mode=%s gpio=%s", self.config.safety.enable_pin, self._mode, gpio.name)
+        if self._mode == "level" and has_drivetrain(self.config) and gpio.name != "mock":
+            self.log.warning(
+                "enable line in LEVEL mode with a drivetrain configured: a killed supervisor leaves "
+                "the motors enabled. Fit the pulse watchdog (HARDWARE.md 5.3) and set safety.enable_mode: pulse."
+            )
 
     def _open_cliff(self, i2c: I2cBus | None) -> CliffSensors:
         names = [s.name for s in self.config.safety.cliff.sensors]

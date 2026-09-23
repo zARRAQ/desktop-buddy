@@ -311,6 +311,8 @@ rather than errors.
   writes it (verified: the mock GPIO log shows no writes to GPIO26 from the bridge). With no dc
   driver the supervisor gates the PCA9685 OE pin instead.
 * Motion refuses to drive without a fresh `safety.state enabled=true` (verified).
+* `safety.enable_mode` selects `level` or `pulse`; the doctor and the safety service warn when a
+  drivetrain runs in `level` mode (verified in tests).
 
 ### 4.4 Calibration
 

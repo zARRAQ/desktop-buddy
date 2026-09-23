@@ -165,6 +165,7 @@ actuators:
 
 safety:
   enable_pin: 26
+  enable_mode: level     # level | pulse. Any build with a drivetrain should use pulse (HARDWARE.md 5.3)
   heartbeat_hz: 100      # square wave on the enable line in pulse mode; see HARDWARE.md 5.3
   motion_heartbeat_timeout_ms: 500
   startup_grace_s: 2.0
