@@ -148,12 +148,27 @@ def autostart_stop() -> None:
     typer.secho(f"sent SIGTERM to {len(pids)} process(es)", fg=typer.colors.GREEN)
 
 
+def is_robot_run_cmdline(argv: list[str]) -> bool:
+    """True for ``robot [global options] run <service>`` and ``python -m robot.cli.main ... run ...``,
+    false for ``uv run robot autostart status`` (uv's own ``run`` comes before the launcher)."""
+    launcher = next((i for i, t in enumerate(argv) if t.endswith("/robot") or t in {"robot", "robot.cli.main"}), None)
+    if launcher is None:
+        return False
+    rest = argv[launcher + 1 :]
+    # skip global options and their values until the subcommand
+    i = 0
+    while i < len(rest) and rest[i].startswith("--"):
+        i += 1 if "=" in rest[i] else 2
+    return i < len(rest) and rest[i] == "run"
+
+
 def _robot_pids() -> list[int]:
     """PIDs of `robot run ...` processes owned by this user, via /proc (no psutil dependency)."""
     me = os.getuid()
+    skip = {os.getpid(), os.getppid()}
     out: list[int] = []
     for proc in Path("/proc").iterdir():
-        if not proc.name.isdigit():
+        if not proc.name.isdigit() or int(proc.name) in skip:
             continue
         try:
             if proc.stat().st_uid != me:
@@ -161,7 +176,6 @@ def _robot_pids() -> list[int]:
             cmd = (proc / "cmdline").read_bytes().split(b"\0")
         except OSError:
             continue
-        text = [c.decode(errors="ignore") for c in cmd]
-        if "run" in text and any(t.endswith("robot") or t.endswith("robot.cli.main") for t in text):
+        if is_robot_run_cmdline([c.decode(errors="ignore") for c in cmd if c]):
             out.append(int(proc.name))
     return sorted(out)

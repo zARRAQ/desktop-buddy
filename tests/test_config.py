@@ -142,3 +142,15 @@ def test_window_display_fullscreen_flag_covers_screen(monkeypatch):
         assert isinstance(pygame.display.get_surface(), pygame.Surface)
     finally:
         d.close()
+
+
+def test_robot_run_cmdline_matcher_ignores_uv_and_other_subcommands():
+    from robot.cli.autostart_cmd import is_robot_run_cmdline as m
+
+    assert m(["/x/.venv/bin/python", "/x/.venv/bin/robot", "run", "all"])
+    assert m(["/x/.venv/bin/python", "-m", "robot.cli.main", "--log-level", "INFO", "--set", "a.b=c", "run", "face"])
+    assert m(["python", "/x/.venv/bin/robot", "--config-dir=/c", "run", "motion", "--mock"])
+    assert not m(["uv", "run", "robot", "autostart", "status"])
+    assert not m(["/x/.venv/bin/python", "/x/.venv/bin/robot", "autostart", "stop"])
+    assert not m(["/x/.venv/bin/python", "/x/.venv/bin/robot", "sim"])
+    assert not m(["bash"])
