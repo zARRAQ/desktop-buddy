@@ -33,6 +33,18 @@ fi
 
 echo "installing for user ${USER_NAME}, repo ${REPO}"
 
+# The units draw straight to the display (KMS). A desktop session owns the display too, so
+# on a Pi that boots to the desktop the face service would fail. Say so instead of half-working.
+if [[ "$(systemctl get-default 2>/dev/null)" == "graphical.target" ]]; then
+  echo "WARNING: this Pi boots to the desktop (graphical.target). The systemd units need the console." >&2
+  echo "  Either: sudo raspi-config -> System Options -> Boot / Auto Login -> Console Autologin, then re-run" >&2
+  echo "  Or:     keep the desktop and use \`uv run robot autostart install\` from a terminal on it instead." >&2
+  if [[ "${1:-}" != "--force" ]]; then
+    echo "  (re-run with --force to install the units anyway)" >&2
+    exit 1
+  fi
+fi
+
 # groups for peripherals
 for g in video audio gpio i2c spi render input; do
   getent group "$g" >/dev/null 2>&1 || groupadd -r "$g"

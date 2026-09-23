@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 
 from robot import __version__
+from robot.cli.autostart_cmd import autostart_app
 from robot.cli.common import Ctx, get_ctx
 from robot.cli.hardware import calibrate_app, camera_app, display_app, safety_app
 from robot.cli.memory_cmd import enroll_command, memory_app
@@ -28,6 +29,7 @@ app.add_typer(camera_app, name="camera", help="Detect and test the camera")
 app.add_typer(calibrate_app, name="calibrate", help="Calibrate servos, drive and cliff sensors")
 app.add_typer(safety_app, name="safety", help="Prove the motor enable interlock")
 app.add_typer(memory_app, name="memory", help="List and forget people and facts")
+app.add_typer(autostart_app, name="autostart", help="Start the robot when the desktop logs in")
 app.command("provision")(provision_command)
 app.command("enroll")(enroll_command)
 

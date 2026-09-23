@@ -22,9 +22,11 @@ class WindowDisplay(Display):
         device_index: int | None = None,
         title: str = "robot face",
         shape: str = "rect",
+        fullscreen: bool = False,
     ) -> None:
         self.info = PanelInfo(backend="kms" if kms else "window", width=width, height=height, shape=shape)
         self._kms = kms
+        self._fullscreen = fullscreen
         self._device_index = device_index
         self._title = title
         self._screen: pygame.Surface | None = None
@@ -38,16 +40,17 @@ class WindowDisplay(Display):
         os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
         pygame.display.init()
         pygame.font.init()
-        flags = pygame.FULLSCREEN if self._kms else 0
-        if self._kms:
+        cover = self._kms or self._fullscreen
+        flags = pygame.FULLSCREEN if cover else 0
+        if cover:
             # Ask for the native mode; SDL reports what we actually got.
             self._screen = pygame.display.set_mode((0, 0), flags)
             w, h = self._screen.get_size()
             self.info.width, self.info.height = w, h
         else:
             self._screen = pygame.display.set_mode((self.info.width, self.info.height), flags)
-            pygame.display.set_caption(self._title)
-        pygame.mouse.set_visible(not self._kms)
+        pygame.display.set_caption(self._title)
+        pygame.mouse.set_visible(not cover)
         self.info.device = pygame.display.get_driver()
         log.info("display: %s %dx%d via SDL %s", self.info.backend, self.info.width, self.info.height, self.info.device)
 

@@ -83,6 +83,9 @@ class DisplayConfig(StrictModel):
     kms_device_index: int | None = Field(
         default=None, description="SDL_KMSDRM_DEVICE_INDEX; None = auto-detect the connected card"
     )
+    fullscreen: bool = Field(
+        default=False, description="window backend: cover the desktop and hide the cursor (robot autostart)"
+    )
 
 
 class FaceConfig(StrictModel):

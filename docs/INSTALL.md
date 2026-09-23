@@ -302,6 +302,16 @@ drivetrain is configured in `level` mode, and so does the safety service at star
 
 ### B11. Install as a service
 
+Two mutually exclusive options. On a Pi that boots to the **desktop** (Raspberry Pi OS with
+desktop), the systemd units cannot take the display; use the desktop autostart instead:
+
+```bash
+uv run robot autostart install     # fullscreen window at desktop login; `status`, `stop`, `remove`
+```
+
+On a Pi that boots to the **console** (Lite, or Desktop set to Console Autologin), install the
+systemd units; `install.sh` refuses on a desktop-booting Pi unless given `--force`:
+
 ```bash
 sudo ./deploy/install.sh
 ```

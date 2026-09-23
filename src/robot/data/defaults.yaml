@@ -25,6 +25,7 @@ display:
   target_fps: 30
   min_fps: 15
   brightness: 1.0
+  fullscreen: false    # window backend only: cover the desktop (set by `robot autostart install`)
   spi:
     bus: 0
     device: 0

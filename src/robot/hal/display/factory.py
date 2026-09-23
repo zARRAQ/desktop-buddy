@@ -37,7 +37,7 @@ def open_display(
 def _build(cfg: DisplayConfig, det: DetectionResult, width: int, height: int, shape: str) -> Display:
     backend = det.backend
     if backend == "window":
-        return WindowDisplay(width, height, shape=shape)
+        return WindowDisplay(width, height, shape=shape, fullscreen=cfg.fullscreen)
     if backend == "kms":
         idx = cfg.kms_device_index
         if idx is None and det.device.startswith("/dev/dri/card"):

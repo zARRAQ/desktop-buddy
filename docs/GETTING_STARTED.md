@@ -257,15 +257,47 @@ face:
 
 ## Step 11. Make it start on its own when powered on
 
-Only once Step 9 works from the terminal:
+Only once Step 9 works from the terminal. There are two ways, and which one you use depends
+on whether your Pi boots to a desktop (windows, mouse pointer) or to the black text console.
+
+### 11a. Pi boots to the desktop
+
+From a terminal window on that desktop:
+
+```bash
+uv run robot autostart install
+```
+
+That registers the robot to open as a fullscreen face the moment the desktop logs in, and
+makes the face cover the screen. Check that the Pi logs in by itself: `sudo raspi-config`,
+System Options, Boot / Auto Login, **Desktop Autologin**. Then `sudo reboot`. The desktop
+appears, then the face over it, in about half a minute.
+
+Useful commands:
+
+```bash
+uv run robot autostart status    # is it installed, is it running
+uv run robot autostart stop      # stop the running robot (it starts again at next login)
+uv run robot autostart remove    # stop starting it at login
+```
+
+The robot's messages go to `~/.local/share/robot/autostart.log`; read them with
+`tail -f ~/.local/share/robot/autostart.log`. To get at the desktop while the face covers it,
+press Alt+Tab, or stop the robot with the command above.
+
+### 11b. Pi boots to the console
+
+This is the mode for the finished robot: nothing but the face, on in about twenty seconds. Set
+`sudo raspi-config`, System Options, Boot / Auto Login, **Console Autologin**, then:
 
 ```bash
 sudo ./deploy/install.sh
+sudo systemctl enable --now robot.target
 sudo reboot
 ```
 
-After the reboot the face appears by itself in about twenty seconds, with no keyboard or login
-needed. To see what the robot is doing, log in and type:
+To see what the robot is doing, log in (Ctrl+Alt+F1 gives a text console if the face is on the
+screen) and type:
 
 ```bash
 journalctl -u 'robot-*' -f
@@ -274,6 +306,8 @@ journalctl -u 'robot-*' -f
 Ctrl+C stops the log view. To stop the robot: `sudo systemctl stop robot.target`. To start
 it: `sudo systemctl start robot.target`. To switch off automatic start:
 `sudo systemctl disable robot.target`.
+
+Do not use both ways at once; each refuses to install while the other is active.
 
 ## Updating later
 

@@ -114,3 +114,31 @@ def test_run_all_child_argv_keeps_override_values():
     assert argv[-5:] == ["run", "motion", "--mock", "--enable-mode", "pulse"]
     assert argv[argv.index("--set") + 1] == "display.backend=null"
     assert argv.count("--set") == 2 and "--config-dir" in argv and "/x/config" in argv
+
+
+def test_autostart_entry_renders_a_valid_desktop_file(tmp_path, monkeypatch):
+    from robot.cli import autostart_cmd as ac
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert ac.entry_path() == tmp_path / "xdg" / "autostart" / ac.ENTRY_NAME
+    text = ac.render_entry(Path("/opt/venv/bin/robot"), Path("/home/pi/desktop-buddy/config"), Path("/tmp/a.log"))
+    assert text.startswith("[Desktop Entry]\n")
+    assert (
+        "Exec=sh -c '/opt/venv/bin/robot --config-dir /home/pi/desktop-buddy/config run all >> /tmp/a.log 2>&1'" in text
+    )
+    assert "Terminal=false" in text
+
+
+def test_window_display_fullscreen_flag_covers_screen(monkeypatch):
+    import pygame
+
+    from robot.hal.display.window import WindowDisplay
+
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    d = WindowDisplay(200, 100, fullscreen=True)
+    d.open()
+    try:
+        assert d.info.width > 0 and d.info.height > 0
+        assert isinstance(pygame.display.get_surface(), pygame.Surface)
+    finally:
+        d.close()
