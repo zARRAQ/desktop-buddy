@@ -18,7 +18,15 @@ import numpy as np
 
 from robot.core.bus import BusClient
 from robot.core.config import RobotConfig
-from robot.core.messages import Envelope, VoiceListening, VoiceSay, VoiceSpeaking, VoiceTranscript, VoiceWake
+from robot.core.messages import (
+    Envelope,
+    VoiceListening,
+    VoiceSay,
+    VoiceSpeaking,
+    VoiceStatus,
+    VoiceTranscript,
+    VoiceWake,
+)
 from robot.core.service import Service
 from robot.voice.base import to_float32
 from robot.voice.factory import VoiceEngines, build_engines
@@ -60,6 +68,7 @@ class VoiceService(Service):
         )
         self._quiet_until = 0.0  # after speaking: give the room time to stop echoing us
         self.presence_triggers = 0
+        self._last_status = 0.0
 
     def setup(self) -> None:
         if not self.config.voice.enabled:
@@ -86,6 +95,19 @@ class VoiceService(Service):
         e = self.engines
         if e is None:
             return
+        now_s = time.monotonic()
+        if now_s - self._last_status >= 2.0:
+            self._last_status = now_s
+            self.bus.publish_payload(
+                VoiceStatus(
+                    state=self.state.value,
+                    engines=e.describe(),
+                    person_present=self.person_present,
+                    wakes=self.wakes,
+                    presence_triggers=self.presence_triggers,
+                    transcripts=self.transcripts,
+                )
+            )
         if self.state == VoiceState.SPEAKING:
             if self._speaker is not None and not self._speaker.is_alive():
                 self._speaker = None

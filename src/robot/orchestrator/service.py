@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import time
+
 from robot.core.bus import BusClient
 from robot.core.config import RobotConfig
 from robot.core.messages import (
     BrainResponse,
     Envelope,
+    OrchestratorState,
     PerceptionFaces,
     PersonEvent,
     SafetyState,
@@ -29,6 +32,7 @@ class OrchestratorService(Service):
         self.tick_hz = config.orchestrator.tick_hz
         self._memory = memory
         self.logic: Orchestrator | None = None
+        self._last_status = 0.0
 
     def setup(self) -> None:
         memory = self._memory or Memory(self.config.memory_path())
@@ -61,5 +65,15 @@ class OrchestratorService(Service):
             o.on_safety(SafetyState.model_validate(env.data))
 
     def tick(self, dt: float) -> None:
-        if self.logic is not None:
-            self.logic.tick()
+        if self.logic is None:
+            return
+        self.logic.tick()
+        now = time.monotonic()
+        if now - self._last_status >= 2.0:
+            # state changes are published as they happen; this repeat lets `robot status` and a
+            # restarted face service learn the current state without waiting for the next change
+            self._last_status = now
+            o = self.logic
+            self.bus.publish_payload(
+                OrchestratorState(state=o.state.value, person=o.attention.name, since=o.state_since_wall())
+            )

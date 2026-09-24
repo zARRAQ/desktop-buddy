@@ -99,6 +99,18 @@ class VoiceListening(Payload):
     state: Literal["start", "end", "timeout"]
 
 
+class VoiceStatus(Payload):
+    """Periodic snapshot for `robot status`: what the voice service is doing and with what."""
+
+    TOPIC = "voice.status"
+    state: str
+    engines: str = ""
+    person_present: bool = False
+    wakes: int = 0
+    presence_triggers: int = 0
+    transcripts: int = 0
+
+
 # --- brain ---------------------------------------------------------------------------
 
 

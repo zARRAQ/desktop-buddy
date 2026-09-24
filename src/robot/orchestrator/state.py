@@ -122,6 +122,7 @@ class Orchestrator:
     safety_enabled: bool = False
     awaiting_name: bool = False
     _state_since: float = 0.0
+    _state_since_wall: float = 0.0
     _pending_speech: list[VoiceSay] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -134,7 +135,11 @@ class Orchestrator:
             return
         self.state = new
         self._state_since = self.clock()
-        self.publish(OrchestratorState(state=new.value, person=self.attention.name, since=time.time()))
+        self._state_since_wall = time.time()
+        self.publish(OrchestratorState(state=new.value, person=self.attention.name, since=self._state_since_wall))
+
+    def state_since_wall(self) -> float:
+        return self._state_since_wall
 
     def _express(self, name: str, hold_ms: int | None = None) -> None:
         try:

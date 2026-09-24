@@ -28,6 +28,8 @@ def status_command(
     latest: dict[str, dict[str, object]] = {}
     heartbeats: dict[str, dict[str, Any]] = {}
     events: defaultdict[str, list[str]] = defaultdict(list)
+    faces_seen = 0
+    names_seen: Counter[str] = Counter()
     t_end = time.monotonic() + seconds
     while time.monotonic() < t_end:
         env = bus.recv(timeout=0.2)
@@ -35,6 +37,12 @@ def status_command(
             continue
         counts[env.topic] += 1
         latest[env.topic] = env.data
+        if env.topic == "perception.faces":
+            found = env.data.get("faces") or []
+            faces_seen += len(found)
+            for face in found:
+                if isinstance(face, dict) and face.get("name"):
+                    names_seen[str(face["name"])] += 1
         if raw:
             typer.echo(f"  {env.src:>12}  {env.topic}")
         if env.topic == "service.heartbeat":
@@ -72,7 +80,7 @@ def status_command(
     typer.secho("state", bold=True)
     o = latest.get("orchestrator.state")
     typer.echo(
-        f"  orchestrator  {o.get('state') if o else 'no update seen'}"
+        f"  orchestrator  {o.get('state') if o else 'no update seen (is the orchestrator from before this update?)'}"
         + (f"  person={o.get('person')}" if o and o.get("person") else "")
     )
     f = latest.get("face.state")
@@ -88,10 +96,26 @@ def status_command(
         typer.echo(
             f"  openmv        {'connected' if om.get('connected') else 'NOT connected'}  camera {om.get('camera_fps')} fps  lcd {om.get('lcd_fps')} fps"
         )
-    faces = counts.get("perception.faces", 0)
-    typer.echo(
-        f"  perception    {faces / seconds:.1f} face reports/s" + ("" if faces else "  (no faces seen or no camera)")
-    )
+    reports = counts.get("perception.faces", 0)
+    if reports == 0:
+        typer.echo("  perception    no reports (no camera, or perception idle)")
+    elif faces_seen == 0:
+        typer.echo(f"  perception    {reports / seconds:.1f} reports/s, NO face in view")
+    else:
+        who = ", ".join(f"{n} x{c}" for n, c in names_seen.most_common(3)) or "nobody recognised yet"
+        typer.echo(
+            f"  perception    {faces_seen / max(reports, 1):.1f} face(s) per report, {reports / seconds:.1f}/s; {who}"
+        )
+    looks = counts.get("face.look", 0)
+    if looks:
+        typer.echo(f"  gaze          eyes told to follow a face {looks / seconds:.1f}x per second")
+    v = latest.get("voice.status")
+    if v:
+        typer.echo(
+            f"  voice         {v.get('state')}  person_present={v.get('person_present')}  wakes={v.get('wakes')}"
+            f" (presence {v.get('presence_triggers')})  transcripts={v.get('transcripts')}"
+        )
+        typer.echo(f"                {v.get('engines')}")
     frames = counts.get("camera.frame", 0)
     if frames:
         typer.echo(f"  camera        {frames / seconds:.1f} frames/s over the bus")
