@@ -158,6 +158,29 @@ def check_audio(cfg: RobotConfig) -> Result:
     return Result("audio", PASS, f"in: {ins[0]}; out: {outs[0]}")
 
 
+def check_voice(cfg: RobotConfig) -> Result:
+    """The speech library imports and the model files it needs are on disk."""
+    if not cfg.voice.enabled:
+        return Result("voice", SKIP, "voice disabled")
+    try:
+        importlib.import_module("sherpa_onnx")
+    except ImportError as exc:
+        return Result(
+            "voice",
+            FAIL,
+            f"sherpa_onnx cannot load ({str(exc)[:80]}); run `uv sync --extra voice` (needs sherpa-onnx-core)",
+        )
+    from robot.voice.factory import voice_models_dir
+
+    d = voice_models_dir()
+    missing = [n for n in (cfg.voice.stt.model, cfg.voice.tts.voice) if not (d / n).exists()]
+    if missing:
+        return Result(
+            "voice", WARN, f"model folders missing: {', '.join(missing)}; run `robot provision --group voice`"
+        )
+    return Result("voice", PASS, f"sherpa-onnx ok; stt {cfg.voice.stt.model}, tts {cfg.voice.tts.voice}")
+
+
 def check_i2c(cfg: RobotConfig) -> Result:
     dev = Path("/dev/i2c-1")
     if not dev.exists():
@@ -326,6 +349,7 @@ CHECKS: tuple[Check, ...] = (
     check_camera,
     check_hailo,
     check_audio,
+    check_voice,
     check_i2c,
     check_gpio,
     check_spi,

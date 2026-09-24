@@ -34,7 +34,11 @@ dependencies = [
 [project.optional-dependencies]
 # Speech: wake word, VAD, STT, TTS. All Apache-2.0 / MIT; no GPL components.
 voice = [
-  "sherpa-onnx>=1.12",
+  # sherpa-onnx is split in two: the Python package and sherpa-onnx-core, which carries
+  # libonnxruntime and the C++ engines. The registry metadata does not declare the second, so
+  # it is listed here explicitly; the two versions must match exactly.
+  "sherpa-onnx==1.13.8",
+  "sherpa-onnx-core==1.13.8",
   "sounddevice>=0.5",
   "onnxruntime>=1.17",
   "openwakeword>=0.6",

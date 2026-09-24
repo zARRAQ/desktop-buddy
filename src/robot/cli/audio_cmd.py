@@ -85,7 +85,14 @@ def audio_test(
         typer.echo(f"speaking ({time.monotonic() - t2:.1f}s to synthesise {len(samples) / sr:.1f}s of audio)")
         e.sink.play(to_float32(samples), sr)
     else:
-        typer.secho("no text-to-speech engine: run `robot provision --group voice`", fg=typer.colors.YELLOW)
+        why = e.errors.get("tts", "")
+        if "libonnxruntime" in why or "sherpa_onnx" in why or "ImportError" in why:
+            hint = "the speech library is incomplete: run `uv sync --extra voice`"
+        elif "FileNotFoundError" in why or "none of" in why:
+            hint = "voice models missing: run `robot provision --group voice`"
+        else:
+            hint = why or "unknown reason"
+        typer.secho(f"no text-to-speech engine: {hint}", fg=typer.colors.RED)
     for eng in (e.wake, e.stt, e.tts):
         if eng is not None:
             eng.close()

@@ -173,3 +173,24 @@ def test_config_set_writes_validates_and_rolls_back(tmp_path):
     r = runner.invoke(app, ["--config-dir", str(cdir), "config", "set", "camera.backend", "webcam"])
     assert r.exit_code == 2 and "rejected" in r.output
     assert (cdir / "local.yaml").read_text() == text  # rolled back
+
+
+def test_doctor_voice_row_names_the_fix(monkeypatch):
+    import builtins
+
+    from robot.doctor import FAIL, SKIP, check_voice
+
+    cfg = load_config(config_dir=Path("/nonexistent"), use_env=False)
+    real_import = builtins.__import__
+
+    def fake_import(name, *a, **k):
+        if name == "sherpa_onnx":
+            raise ImportError("libonnxruntime.so: cannot open shared object file")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    r = check_voice(cfg)
+    assert r.status == FAIL and "uv sync --extra voice" in r.detail
+    monkeypatch.undo()
+    off = load_config(config_dir=Path("/nonexistent"), use_env=False, overrides=["voice.enabled=false"])
+    assert check_voice(off).status == SKIP
