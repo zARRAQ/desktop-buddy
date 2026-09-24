@@ -115,3 +115,31 @@ def test_zmq_broker_stops_cleanly():
     broker.stop()
     t.join(timeout=3)
     assert not t.is_alive()
+
+
+def test_service_hang_watchdog_fires_and_is_configurable(config, hub: LocalHub):
+    """A tick that never returns must trip the watchdog, which normally exits the process."""
+    from robot.core.service import Service
+
+    class Stuck(Service):
+        name = "stuck"
+        tick_hz = 50.0
+
+        def tick(self, dt):
+            time.sleep(3.0)
+
+    svc = Stuck(config, hub.client("stuck"))
+    svc.hang_timeout_s = 1.0
+    fired = threading.Event()
+
+    def on_hang():
+        fired.set()
+        svc.request_stop()
+
+    svc.on_hang = on_hang
+    t = threading.Thread(target=svc.run, daemon=True)
+    t.start()
+    assert fired.wait(6.0), "watchdog did not fire"
+    t.join(timeout=6.0)
+    assert not t.is_alive()
+    assert config.system.hang_timeout_s == 20.0

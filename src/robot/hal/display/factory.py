@@ -75,7 +75,7 @@ def _build(
         assert publish is not None
         return BusDisplay(width, height, publish=publish, eye_color=hex_rgb(eye_color), max_fps=bus_fps, shape=shape)
     if backend == "window":
-        return WindowDisplay(width, height, shape=shape, fullscreen=cfg.fullscreen)
+        return WindowDisplay(width, height, shape=shape, fullscreen=cfg.fullscreen, sdl_driver=cfg.sdl_driver)
     if backend == "kms":
         idx = cfg.kms_device_index
         if idx is None and det.device.startswith("/dev/dri/card"):

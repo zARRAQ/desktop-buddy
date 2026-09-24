@@ -189,31 +189,35 @@ def child_argv(c: Ctx, service: str, *, mock: bool = False, enable_mode: str | N
 
 def _run_all(cfg: object, c: Ctx, *, mock: bool = False, enable_mode: str | None = None) -> int:
     """Spawn broker + every service as child processes; forward Ctrl-C."""
-    procs: list[subprocess.Popen[bytes]] = []
-    names: dict[int, str] = {}
+    procs: dict[str, subprocess.Popen[bytes]] = {}
     for name in SERVICES:
         if name in ("power", "openmv") and not getattr(getattr(cfg, name, None), "enabled", False):
             continue
-        proc = subprocess.Popen(child_argv(c, name, mock=mock, enable_mode=enable_mode))
-        names[proc.pid] = name
-        procs.append(proc)
+        procs[name] = subprocess.Popen(child_argv(c, name, mock=mock, enable_mode=enable_mode))
         time.sleep(0.3 if name == "broker" else 0.05)
     typer.echo(f"started {len(procs)} processes; Ctrl-C to stop")
-    reported: set[int] = set()
+    restarts: dict[str, float] = {}
     try:
         while True:
-            for p in procs:
-                if p.poll() is not None and p.pid not in reported:
-                    reported.add(p.pid)
-                    typer.secho(f"service {names[p.pid]} exited with {p.returncode}", fg=typer.colors.YELLOW)
+            for name, p in list(procs.items()):
+                if p.poll() is None:
+                    continue
+                # a service that died or was exited by its hang watchdog comes back, like under systemd
+                delay = min(30.0, 2.0 * (2 ** restarts.get(name, 0)))
+                typer.secho(
+                    f"service {name} exited with {p.returncode}; restarting in {delay:.0f}s", fg=typer.colors.YELLOW
+                )
+                time.sleep(delay)
+                procs[name] = subprocess.Popen(child_argv(c, name, mock=mock, enable_mode=enable_mode))
+                restarts[name] = restarts.get(name, 0) + 1
             time.sleep(1.0)
     except KeyboardInterrupt:
         pass
     finally:
-        for p in procs:
+        for p in procs.values():
             if p.poll() is None:
                 p.send_signal(signal.SIGTERM)
-        for p in procs:
+        for p in procs.values():
             try:
                 p.wait(timeout=5)
             except subprocess.TimeoutExpired:

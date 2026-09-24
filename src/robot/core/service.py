@@ -7,12 +7,16 @@ the same classes run as threads over a :class:`~robot.core.bus.LocalHub`.
 
 from __future__ import annotations
 
+import contextlib
+import faulthandler
 import logging
 import os
 import signal
 import socket
+import sys
 import threading
 import time
+from collections.abc import Callable
 from types import FrameType
 
 from robot.core.bus import BusClient
@@ -60,6 +64,9 @@ class Service:
         self._stop = threading.Event()
         self._last_heartbeat = 0.0
         self.log = logging.getLogger(f"robot.{self.name}")
+        self._loop_beat = time.monotonic()
+        self.hang_timeout_s: float = float(getattr(getattr(config, "system", None), "hang_timeout_s", 20.0))
+        self.on_hang: Callable[[], None] = self._exit_for_restart  # tests swap this for a flag
 
     # -- lifecycle hooks ------------------------------------------------------------
     def setup(self) -> None: ...
@@ -94,9 +101,12 @@ class Service:
         period = 1.0 / max(self.tick_hz, 0.1)
         next_tick = time.monotonic()
         last = next_tick
+        self._loop_beat = time.monotonic()
+        threading.Thread(target=self._hang_watchdog, name=f"{self.name}-watchdog", daemon=True).start()
         try:
             while not self._stop.is_set():
                 now = time.monotonic()
+                self._loop_beat = now
                 wait = max(0.0, next_tick - now)
                 env = self.bus.recv(timeout=min(wait, 0.25))
                 if env is not None:
@@ -121,6 +131,24 @@ class Service:
                 self.log.exception("teardown failed")
             self.bus.close()
             self.log.info("stopped")
+
+    def _hang_watchdog(self) -> None:
+        """A blocked loop (a display flip that never returns, a driver call that hangs) would
+        otherwise leave the robot half alive forever. Dump every thread's stack so the cause
+        is in the log, then let the supervisor restart the process."""
+        while not self._stop.is_set():
+            time.sleep(1.0)
+            stalled = time.monotonic() - self._loop_beat
+            if not self._stop.is_set() and stalled > self.hang_timeout_s:
+                self.log.critical("loop stalled for %.0fs; dumping stacks and exiting for restart", stalled)
+                with contextlib.suppress(Exception):  # best effort: the exit matters more
+                    faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+                self.on_hang()
+                return
+
+    def _exit_for_restart(self) -> None:
+        sd_notify("STOPPING=1")
+        os._exit(3)
 
     def _maybe_heartbeat(self, now: float) -> None:
         if now - self._last_heartbeat < self.config.bus.heartbeat_s:

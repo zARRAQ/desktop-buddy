@@ -47,6 +47,11 @@ class SystemConfig(StrictModel):
     log_level: str = "INFO"
     temp_throttle_c: float = 75.0
     temp_critical_c: float = 82.0
+    hang_timeout_s: float = Field(
+        default=20.0,
+        ge=2.0,
+        description="A service whose loop stalls this long dumps its stack and exits so it gets restarted",
+    )
 
 
 class DisplaySpiConfig(StrictModel):
@@ -85,6 +90,11 @@ class DisplayConfig(StrictModel):
     )
     fullscreen: bool = Field(
         default=False, description="window backend: cover the desktop and hide the cursor (robot autostart)"
+    )
+    sdl_driver: Literal["auto", "x11", "wayland", "kmsdrm"] = Field(
+        default="auto",
+        description="window backend: SDL video driver. auto prefers x11 (XWayland) on a Wayland desktop, "
+        "because SDL's Wayland path can block the face when its window is covered",
     )
 
 
@@ -375,7 +385,7 @@ class OpenMvConfig(StrictModel):
     leds: bool = Field(default=False, description="Turn on the board's illumination LEDs if wired to P9")
     lcd_width: int = 128
     lcd_height: int = 160
-    lcd_fps: float = Field(default=12.0, gt=0, le=30)
+    lcd_fps: float = Field(default=8.0, gt=0, le=30)
 
 
 class PowerConfig(StrictModel):

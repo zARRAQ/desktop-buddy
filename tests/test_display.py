@@ -186,3 +186,13 @@ def test_pattern_draws_orientation_glyph():
     draw_pattern(s)
     assert s.get_at((7, 7))[:3] == (255, 255, 255)
     assert s.get_at((5, 120))[:3] != (255, 200, 0)
+
+
+def test_choose_sdl_driver_prefers_x11_on_wayland_but_respects_overrides():
+    from robot.hal.display.window import choose_sdl_driver
+
+    assert choose_sdl_driver("auto", {"SDL_VIDEODRIVER": "dummy"}) is None  # tests and users win
+    assert choose_sdl_driver("auto", {"WAYLAND_DISPLAY": "wayland-0", "DISPLAY": ":0"}) == "x11"
+    assert choose_sdl_driver("auto", {"WAYLAND_DISPLAY": "wayland-0"}) is None  # no XWayland: leave it
+    assert choose_sdl_driver("auto", {"DISPLAY": ":0"}) is None
+    assert choose_sdl_driver("wayland", {"WAYLAND_DISPLAY": "wayland-0", "DISPLAY": ":0"}) == "wayland"

@@ -26,7 +26,7 @@ LCD_H = 160
 BOOT_EYE = (62, 224, 230)  # same cyan as the Pi's default face
 BOOT_BG = (0, 0, 0)
 LED_PIN = "P9"  # illumination LEDs, if the unit wires them to a pin
-VERSION = "buddy-openmv 3"
+VERSION = "buddy-openmv 4"
 
 cam_w, cam_h, quality, fps, leds_on = 320, 240, 70, 10, 0
 seq = 0
@@ -117,13 +117,28 @@ def show_face(w, h, fg, bg, bits):
     for y in range(h):
         row = struct.unpack(fmt, bits[y * row_bytes : (y + 1) * row_bytes])
         start = -1
-        for x in range(w):
-            lit = (row[x >> 5] >> (x & 31)) & 1
-            if lit and start < 0:
-                start = x
-            elif not lit and start >= 0:
-                img.draw_line(start, y, x - 1, y, color=fgc)
-                start = -1
+        for wi in range(words):
+            word = row[wi]
+            base = wi << 5
+            if word == 0:
+                if start >= 0:
+                    img.draw_line(start, y, base - 1, y, color=fgc)
+                    start = -1
+                continue
+            if word == 0xFFFFFFFF:
+                if start < 0:
+                    start = base
+                continue
+            for b in range(32):
+                x = base + b
+                if x >= w:
+                    break
+                lit = (word >> b) & 1
+                if lit and start < 0:
+                    start = x
+                elif not lit and start >= 0:
+                    img.draw_line(start, y, x - 1, y, color=fgc)
+                    start = -1
         if start >= 0:
             img.draw_line(start, y, w - 1, y, color=fgc)
     screen.show(img)
@@ -179,9 +194,13 @@ def read_exact(n, timeout_ms):
 
 
 def poll_pi():
-    """Handle everything the Pi has sent. Returns True if a face frame was shown."""
+    """Handle everything the Pi has sent. Returns True if a face frame was shown.
+
+    Face frames are coalesced: when several are waiting, only the newest is drawn, so a slow
+    screen never starves the camera."""
     global cam_w, cam_h, quality, fps, leds_on, last_pi_ms
     shown = False
+    pending_face = None
     while usb.any():
         first = read_exact(1, 50)
         if first is None or first[0] != ord("O"):
@@ -200,9 +219,7 @@ def poll_pi():
             return shown
         last_pi_ms = time.ticks_ms()
         if kind == ord("F"):
-            w, h, fg, bg = struct.unpack("<HHHH", payload[:8])
-            show_face(w, h, fg, bg, payload[8:])
-            shown = True
+            pending_face = payload
         elif kind == ord("C"):
             w, h, q, f, l = struct.unpack("<HHBBB", payload[:7])
             if (w, h) != (cam_w, cam_h):
@@ -213,6 +230,10 @@ def poll_pi():
             log("config %dx%d q%d fps%d leds%d" % (cam_w, cam_h, quality, fps, leds_on))
         elif kind == ord("P"):
             send("Q", ("%s sensor=%s lcd=%dx%d via %s fast=%d" % (VERSION, sensor_name(), LCD_W, LCD_H, screen.kind, fast_binary)).encode())
+    if pending_face is not None:
+        w, h, fg, bg = struct.unpack("<HHHH", pending_face[:8])
+        show_face(w, h, fg, bg, pending_face[8:])
+        shown = True
     return shown
 
 

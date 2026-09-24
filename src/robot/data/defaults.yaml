@@ -7,6 +7,7 @@ system:
   log_level: INFO
   temp_throttle_c: 75.0
   temp_critical_c: 82.0
+  hang_timeout_s: 20    # a stalled service dumps its stack and exits, and gets restarted
 
 bus:
   xsub: tcp://127.0.0.1:7770
@@ -26,6 +27,7 @@ display:
   min_fps: 15
   brightness: 1.0
   fullscreen: false    # window backend only: cover the desktop (set by `robot autostart install`)
+  sdl_driver: auto     # window backend: auto | x11 | wayland | kmsdrm (auto prefers x11 on a Wayland desktop)
   spi:
     bus: 0
     device: 0
@@ -181,7 +183,7 @@ openmv:
   leds: false          # illumination LEDs on P9, if the unit has them wired there
   lcd_width: 128       # the board's own screen; the face is rendered at this size
   lcd_height: 160
-  lcd_fps: 12
+  lcd_fps: 8           # the board redraws its screen in software; 8 keeps the camera flowing
 
 power:
   enabled: false

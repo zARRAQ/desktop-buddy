@@ -4,12 +4,29 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Mapping
 
 import pygame
 
 from robot.hal.display.base import Display, PanelInfo
 
 log = logging.getLogger(__name__)
+
+
+def choose_sdl_driver(setting: str, environ: Mapping[str, str]) -> str | None:
+    """Which SDL video driver to ask for, or None to leave SDL's choice alone.
+
+    An explicit ``SDL_VIDEODRIVER`` in the environment always wins (tests set ``dummy``). With
+    ``auto`` on a Wayland desktop that also offers X11 (XWayland), prefer x11: SDL's Wayland
+    backend can block in the buffer swap while the window is covered, which froze the face.
+    """
+    if environ.get("SDL_VIDEODRIVER"):
+        return None
+    if setting != "auto":
+        return setting
+    if environ.get("WAYLAND_DISPLAY") and environ.get("DISPLAY"):
+        return "x11"
+    return None
 
 
 class WindowDisplay(Display):
@@ -23,10 +40,12 @@ class WindowDisplay(Display):
         title: str = "robot face",
         shape: str = "rect",
         fullscreen: bool = False,
+        sdl_driver: str = "auto",
     ) -> None:
         self.info = PanelInfo(backend="kms" if kms else "window", width=width, height=height, shape=shape)
         self._kms = kms
         self._fullscreen = fullscreen
+        self._sdl_driver = sdl_driver
         self._device_index = device_index
         self._title = title
         self._screen: pygame.Surface | None = None
@@ -38,7 +57,17 @@ class WindowDisplay(Display):
             if self._device_index is not None:
                 os.environ["SDL_KMSDRM_DEVICE_INDEX"] = str(self._device_index)
         os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
-        pygame.display.init()
+        preferred = None if self._kms else choose_sdl_driver(self._sdl_driver, os.environ)
+        if preferred is not None:
+            os.environ["SDL_VIDEODRIVER"] = preferred
+        try:
+            pygame.display.init()
+        except pygame.error as exc:
+            if preferred is None:
+                raise
+            log.warning("SDL driver %s failed (%s); letting SDL choose", preferred, exc)
+            os.environ.pop("SDL_VIDEODRIVER", None)
+            pygame.display.init()
         pygame.font.init()
         cover = self._kms or self._fullscreen
         flags = pygame.FULLSCREEN if cover else 0
