@@ -89,10 +89,10 @@ def enroll_command(
             files = sorted(p for p in images.iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png"))
             n = enroll_from_images(files, backend, m, name)
         else:
-            from robot.hal.camera.factory import open_camera
+            from robot.hal.openmv.direct import open_camera_direct
             from robot.perception.enroll import enroll_from_camera
 
-            cam = open_camera(cfg.camera)
+            cam = open_camera_direct(cfg)
             if cam.info.backend == "null":
                 typer.secho("no camera found", fg=typer.colors.RED)
                 raise typer.Exit(1)

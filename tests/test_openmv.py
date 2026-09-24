@@ -263,3 +263,22 @@ def test_find_openmv_drive(tmp_path):
     (media / "OPENMV").mkdir()
     assert find_openmv_drive([media]) == media / "NO NAME"  # sorted: "NO NAME" before "OPENMV"; both valid
     assert find_openmv_drive([tmp_path / "nothing"]) is None
+
+
+def test_open_camera_direct_falls_back_cleanly(tmp_path):
+    from robot.hal.openmv.direct import open_camera_direct
+
+    # not enabled: the configured camera, untouched
+    cfg = load_config(config_dir=tmp_path, use_env=False, overrides=["camera.backend=synthetic"])
+    cam = open_camera_direct(cfg)
+    assert cam.info.backend == "synthetic" and not cam.via_openmv
+    cam.close()
+    # enabled but no board on the given port: a null camera with the reason, no exception
+    cfg2 = load_config(
+        config_dir=tmp_path,
+        use_env=False,
+        overrides=["openmv.enabled=true", "openmv.port=/dev/nope", "camera.backend=bus"],
+    )
+    cam2 = open_camera_direct(cfg2)
+    assert cam2.info.backend == "null" and not cam2.via_openmv and cam2.info.notes
+    cam2.close()
