@@ -318,6 +318,12 @@ uv sync --extra voice
 sudo systemctl restart robot.target
 ```
 
+## Using an OpenMV camera board instead of a webcam
+
+If your camera is an OpenMV board (a red circuit board with its own little screen), it is not
+a webcam and needs its own setup: see `OPENMV.md` in this folder. Everything above still
+applies; the OpenMV replaces the webcam step and gives the robot a second, tiny face.
+
 ## What to add next, in order
 
 1. **Language model.** Follow `INSTALL.md` B6 (llama.cpp) and set `brain.managed: llama_server`

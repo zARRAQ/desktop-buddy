@@ -6,7 +6,7 @@ import time
 
 from robot.core.bus import BusClient
 from robot.core.config import RobotConfig
-from robot.core.messages import Envelope, FaceObs, PerceptionFaces, PersonEvent
+from robot.core.messages import CameraFrame, Envelope, FaceObs, PerceptionFaces, PersonEvent
 from robot.core.service import Service
 from robot.hal.camera.base import Camera, Frame
 from robot.hal.camera.factory import open_camera
@@ -19,7 +19,7 @@ from robot.perception.tracker import Track, Tracker
 
 class PerceptionService(Service):
     name = "perception"
-    subscriptions = ("memory.changed", "perception.enroll")
+    subscriptions = ("memory.changed", "perception.enroll", CameraFrame.TOPIC)
 
     def __init__(
         self,
@@ -35,7 +35,7 @@ class PerceptionService(Service):
         self._camera = camera
         self._backend = backend
         self._memory = memory
-        self.camera: Camera | None = None
+        self.camera: Camera | None = camera  # a bus camera needs frames before setup runs
         self.backend: PerceptionBackend | None = None
         self.index: IdentityIndex | None = None
         self.tracker = Tracker(
@@ -66,7 +66,12 @@ class PerceptionService(Service):
         )
 
     def on_message(self, env: Envelope) -> None:
-        if env.topic == "memory.changed" and self.index is not None:
+        if env.topic == CameraFrame.TOPIC:
+            from robot.hal.camera.bus import BusCamera
+
+            if isinstance(self.camera, BusCamera):
+                self.camera.push(env.data)
+        elif env.topic == "memory.changed" and self.index is not None:
             self.index.refresh(force=True)
         elif env.topic == "perception.enroll":
             name = str(env.data.get("name", "")).strip()

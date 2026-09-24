@@ -123,6 +123,47 @@ class BrainResponse(Payload):
     error: str | None = None
 
 
+# --- raw frames (OpenMV bridge) ------------------------------------------------------
+
+
+class CameraFrame(Payload):
+    """A JPEG frame from a camera that lives behind a bridge (the OpenMV over USB)."""
+
+    TOPIC = "camera.frame"
+    width: int
+    height: int
+    seq: int = 0
+    jpeg: bytes
+
+    def to_data(self) -> dict[str, Any]:
+        return self.model_dump()  # python mode: msgpack carries bytes natively, JSON mode would not
+
+
+class DisplayFrame(Payload):
+    """A 1-bit face frame for a display behind a bridge (the OpenMV's LCD). ``bits`` is in
+    OpenMV BINARY layout, see :mod:`robot.hal.openmv.protocol`."""
+
+    TOPIC = "display.frame"
+    width: int
+    height: int
+    fg: int  # RGB565
+    bg: int  # RGB565
+    bits: bytes
+
+    def to_data(self) -> dict[str, Any]:
+        return self.model_dump()
+
+
+class OpenMvState(Payload):
+    TOPIC = "openmv.state"
+    connected: bool
+    port: str = ""
+    camera_fps: float = 0.0
+    lcd_fps: float = 0.0
+    dropped: int = 0
+    board: str = ""
+
+
 # --- face ----------------------------------------------------------------------------
 
 

@@ -1,0 +1,22 @@
+[Unit]
+Description=Robot service: OpenMV camera board bridge (USB)
+PartOf=robot.target
+After=robot-broker.service
+Requires=robot-broker.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+User=@USER@
+Group=@USER@
+SupplementaryGroups=dialout
+WorkingDirectory=@REPO@
+EnvironmentFile=-@REPO@/config/robot.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@VENV@/bin/robot run openmv
+Restart=always
+RestartSec=3
+WatchdogSec=30
+
+[Install]
+WantedBy=robot.target

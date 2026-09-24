@@ -103,6 +103,7 @@ flowchart TD
 | `i2c` | SSD1306/SH1106 page writes, thresholded | 10 to 20 | Verified packing; not yet on a panel |
 | `window` | pygame-ce window | vsync | Verified (also with SDL's dummy driver in CI) |
 | `null` | Discards frames, keeps the last one | n/a | Verified |
+| `bus` | Publishes 1-bit frames for the OpenMV bridge to put on the board's LCD | any OpenMV Cam with a screen | Unit-tested, not yet on a board |
 
 Every backend implements the same `Display` interface (`open`, `push(surface)`, `close`,
 `set_brightness`, `healthy`). Adding a panel type means adding an init tuple, not touching the

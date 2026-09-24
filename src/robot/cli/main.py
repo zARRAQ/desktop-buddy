@@ -16,6 +16,7 @@ from robot.cli.autostart_cmd import autostart_app
 from robot.cli.common import Ctx, get_ctx
 from robot.cli.hardware import calibrate_app, camera_app, display_app, safety_app
 from robot.cli.memory_cmd import enroll_command, memory_app
+from robot.cli.openmv_cmd import openmv_app
 from robot.cli.provision_cmd import provision_command
 
 app = typer.Typer(
@@ -30,10 +31,11 @@ app.add_typer(calibrate_app, name="calibrate", help="Calibrate servos, drive and
 app.add_typer(safety_app, name="safety", help="Prove the motor enable interlock")
 app.add_typer(memory_app, name="memory", help="List and forget people and facts")
 app.add_typer(autostart_app, name="autostart", help="Start the robot when the desktop logs in")
+app.add_typer(openmv_app, name="openmv", help="OpenMV camera board: flash the bridge script, probe the link")
 app.command("provision")(provision_command)
 app.command("enroll")(enroll_command)
 
-SERVICES = ("broker", "safety", "motion", "face", "perception", "voice", "brain", "orchestrator", "power")
+SERVICES = ("broker", "safety", "motion", "face", "perception", "voice", "brain", "orchestrator", "power", "openmv")
 
 
 @app.callback(invoke_without_command=True)
@@ -152,6 +154,10 @@ def run(
         from robot.cli.power_service import PowerService
 
         svc = PowerService(cfg, bus)
+    elif service == "openmv":
+        from robot.openmv.service import OpenMvService
+
+        svc = OpenMvService(cfg, bus)
     else:
         typer.secho(f"unknown service {service!r}; choose from {', '.join(SERVICES)}", fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
@@ -180,7 +186,7 @@ def _run_all(cfg: object, c: Ctx, *, mock: bool = False, enable_mode: str | None
     procs: list[subprocess.Popen[bytes]] = []
     names: dict[int, str] = {}
     for name in SERVICES:
-        if name == "power" and not getattr(getattr(cfg, "power", None), "enabled", False):
+        if name in ("power", "openmv") and not getattr(getattr(cfg, name, None), "enabled", False):
             continue
         proc = subprocess.Popen(child_argv(c, name, mock=mock, enable_mode=enable_mode))
         names[proc.pid] = name

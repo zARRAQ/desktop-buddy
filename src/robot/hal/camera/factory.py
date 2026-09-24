@@ -50,6 +50,10 @@ def _build(cfg: CameraConfig, det: CameraDetection) -> Camera:
             backend_name=det.backend,
             loop=cfg.loop_file,
         )
+    if det.backend == "bus":
+        from robot.hal.camera.bus import BusCamera
+
+        return BusCamera(cfg.width, cfg.height)
     if det.backend == "synthetic":
         from robot.hal.camera.synthetic import SyntheticCamera
 

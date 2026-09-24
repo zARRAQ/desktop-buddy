@@ -166,6 +166,20 @@ memory:
   greet_cooldown_s: 900
   max_facts_per_person: 50
 
+openmv:
+  # OpenMV camera board on USB running openmv/main.py (docs/OPENMV.md). When enabled, also set
+  # camera.backend: bus and display.backend: bus so frames and the face travel over the bridge.
+  enabled: false
+  port: auto           # /dev/ttyACM0, /dev/serial/by-id/..., or auto
+  width: 320           # camera frame sent to the Pi (320x240 or 640x480)
+  height: 240
+  jpeg_quality: 70
+  fps: 10
+  leds: false          # illumination LEDs on P9, if the unit has them wired there
+  lcd_width: 128       # the board's own screen; the face is rendered at this size
+  lcd_height: 160
+  lcd_fps: 12
+
 power:
   enabled: false
   ina219_address: 0x41

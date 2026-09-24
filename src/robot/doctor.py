@@ -287,6 +287,24 @@ def check_interlock(cfg: RobotConfig) -> Result:
     )
 
 
+def check_openmv(cfg: RobotConfig) -> Result:
+    if not cfg.openmv.enabled:
+        return Result("openmv", SKIP, "openmv.enabled: false")
+    from robot.hal.openmv.link import find_port
+
+    port = cfg.openmv.port if cfg.openmv.port != "auto" else find_port()
+    if not port or not Path(port).exists():
+        return Result("openmv", FAIL, "no /dev/ttyACM* device: plug the OpenMV in; it must be running openmv/main.py")
+    if not os.access(port, os.R_OK | os.W_OK):
+        return Result("openmv", FAIL, f"{port} not accessible; add the user to the dialout group and log in again")
+    notes = []
+    if cfg.camera.backend != "bus":
+        notes.append("camera.backend should be bus")
+    if cfg.display.backend != "bus":
+        notes.append("display.backend is not bus (face will not reach the board's LCD)")
+    return Result("openmv", WARN if notes else PASS, f"{port}" + (f"; {'; '.join(notes)}" if notes else ""))
+
+
 def check_memory(cfg: RobotConfig) -> Result:
     from robot.memory import Memory
 
@@ -314,6 +332,7 @@ CHECKS: tuple[Check, ...] = (
     check_thermal,
     check_brain,
     check_interlock,
+    check_openmv,
     check_memory,
 )
 

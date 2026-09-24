@@ -60,7 +60,7 @@ class DisplaySpiConfig(StrictModel):
     y_offset: int = 0
 
 
-DisplayBackend = Literal["auto", "kms", "fbdev", "spi", "i2c", "window", "null"]
+DisplayBackend = Literal["auto", "kms", "fbdev", "spi", "i2c", "window", "bus", "null"]
 Controller = Literal["auto", "st7789", "ili9341", "ili9488", "gc9a01", "ssd1306", "sh1106"]
 
 
@@ -103,7 +103,7 @@ class FaceConfig(StrictModel):
     mouth: bool = Field(default=True, description="Animated mouth while speaking")
 
 
-CameraBackend = Literal["auto", "csi", "uvc", "rtsp", "file", "synthetic", "null"]
+CameraBackend = Literal["auto", "csi", "uvc", "rtsp", "file", "synthetic", "bus", "null"]
 
 
 class CameraConfig(StrictModel):
@@ -353,6 +353,23 @@ class MemoryConfig(StrictModel):
     max_facts_per_person: int = 50
 
 
+class OpenMvConfig(StrictModel):
+    """An OpenMV camera board on USB, running ``openmv/main.py``: it streams JPEG frames to
+    the ``openmv`` bridge service and shows the face on its own LCD. Pair it with
+    ``camera.backend: bus`` and ``display.backend: bus``."""
+
+    enabled: bool = False
+    port: str = Field(default="auto", description="/dev/ttyACM0 or /dev/serial/by-id/...; auto scans")
+    width: int = 320
+    height: int = 240
+    jpeg_quality: int = Field(default=70, ge=10, le=95)
+    fps: int = Field(default=10, ge=1, le=30)
+    leds: bool = Field(default=False, description="Turn on the board's illumination LEDs if wired to P9")
+    lcd_width: int = 128
+    lcd_height: int = 160
+    lcd_fps: float = Field(default=12.0, gt=0, le=30)
+
+
 class PowerConfig(StrictModel):
     enabled: bool = False
     ina219_address: int = 0x41
@@ -394,6 +411,7 @@ class RobotConfig(StrictModel):
     safety: SafetyConfig = SafetyConfig()
     memory: MemoryConfig = MemoryConfig()
     power: PowerConfig = PowerConfig()
+    openmv: OpenMvConfig = OpenMvConfig()
     orchestrator: OrchestratorConfig = OrchestratorConfig()
 
     def memory_path(self) -> Path:

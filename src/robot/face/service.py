@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pygame
+
 from robot.core.bus import BusClient
 from robot.core.config import RobotConfig
 from robot.core.messages import Envelope, FaceExpression, FaceLook, FaceMode, FaceState, VoiceSpeaking
@@ -29,9 +31,18 @@ class FaceService(Service):
         self.renderer: FaceRenderer | None = None
         self.quality = QualityController(config.display.target_fps, config.display.min_fps)
         self._last_state = 0.0
+        self.mirror: Display | None = None
+        self.mirror_renderer: FaceRenderer | None = None
+        self.mirror_surface: pygame.Surface | None = None
 
     def setup(self) -> None:
-        disp = self._display or open_display(self.config.display)
+        disp = self._display or open_display(
+            self.config.display,
+            publish=self.bus.publish_payload,
+            eye_color=self.config.face.eye_color,
+            bus_size=(self.config.openmv.lcd_width, self.config.openmv.lcd_height),
+            bus_fps=self.config.openmv.lcd_fps,
+        )
         self.pipeline = DisplayPipeline(self.config.display, disp)
         color: str = self.config.display.color
         if color == "auto":
@@ -45,6 +56,24 @@ class FaceService(Service):
         )
         self.renderer = FaceRenderer(self.config.face, geometry)
         disp.set_brightness(self.config.display.brightness)
+        if self.config.openmv.enabled and disp.info.backend != "bus":
+            # HDMI (or whatever) is the main face; the OpenMV's little LCD mirrors it
+            from robot.hal.display.bus import BusDisplay
+            from robot.hal.display.factory import hex_rgb
+
+            o = self.config.openmv
+            self.mirror = BusDisplay(
+                o.lcd_width,
+                o.lcd_height,
+                publish=self.bus.publish_payload,
+                eye_color=hex_rgb(self.config.face.eye_color),
+                max_fps=o.lcd_fps,
+            )
+            self.mirror_renderer = FaceRenderer(
+                self.config.face, PanelGeometry(o.lcd_width, o.lcd_height, color="mono1")
+            )
+            self.mirror_surface = pygame.Surface((o.lcd_width, o.lcd_height))
+            self.log.info("mirroring the face to the OpenMV LCD at %dx%d", o.lcd_width, o.lcd_height)
         self.log.info(
             "face on %s %dx%d shape=%s color=%s",
             disp.info.backend,
@@ -102,6 +131,9 @@ class FaceService(Service):
             face, self.pipeline.surface, antialias=self.quality.antialias, overlay=self.animator.overlay()
         )
         self.pipeline.present()
+        if self.mirror is not None and self.mirror_renderer is not None and self.mirror_surface is not None:
+            self.mirror_renderer.render(face, self.mirror_surface, antialias=False, overlay=self.animator.overlay())
+            self.mirror.push(self.mirror_surface)
         self.quality.record(time.perf_counter() - t0)
         self.tick_hz = self.quality.effective_fps
         for ev in self.pipeline.pump_events():

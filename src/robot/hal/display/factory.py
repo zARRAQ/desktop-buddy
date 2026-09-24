@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from robot.core.config import DisplayConfig
+from robot.core.messages import Payload
 from robot.hal.display.base import Display
 from robot.hal.display.detect import DetectionResult, Probes, detect_display
 from robot.hal.display.null import NullDisplay
@@ -14,17 +16,31 @@ log = logging.getLogger(__name__)
 
 
 def open_display(
-    cfg: DisplayConfig, *, probes: Probes | None = None, detection: DetectionResult | None = None
+    cfg: DisplayConfig,
+    *,
+    probes: Probes | None = None,
+    detection: DetectionResult | None = None,
+    publish: Callable[[Payload], None] | None = None,
+    eye_color: str = "#3EE0E6",
+    bus_size: tuple[int, int] = (128, 160),
+    bus_fps: float = 12.0,
 ) -> Display:
-    """Returns an opened display. Falls back to :class:`NullDisplay` on any failure."""
+    """Returns an opened display. Falls back to :class:`NullDisplay` on any failure.
+
+    ``publish`` is needed by the ``bus`` backend (frames go to the OpenMV bridge over the
+    bus); ``bus_size`` is that LCD's size when the display config does not say."""
     det = detection or detect_display(cfg, probes)
     for r in det.reasons:
         log.info("display detect: %s", r)
+    if det.backend == "bus" and not (cfg.width and cfg.height):
+        det.width, det.height = bus_size
     width = cfg.width or det.width or 480
     height = cfg.height or det.height or 480
     shape = cfg.shape if cfg.shape != "auto" else (det.shape if det.shape != "auto" else "rect")
     try:
-        disp = _build(cfg, det, width, height, shape)
+        if det.backend == "bus" and publish is None:
+            raise RuntimeError("display.backend=bus needs a bus to publish on")
+        disp = _build(cfg, det, width, height, shape, publish=publish, eye_color=eye_color, bus_fps=bus_fps)
         disp.open()
         return disp
     except Exception as exc:
@@ -34,8 +50,30 @@ def open_display(
         return null
 
 
-def _build(cfg: DisplayConfig, det: DetectionResult, width: int, height: int, shape: str) -> Display:
+def hex_rgb(text: str) -> tuple[int, int, int]:
+    t = text.strip().lstrip("#")
+    if len(t) == 3:
+        t = "".join(c * 2 for c in t)
+    return int(t[0:2], 16), int(t[2:4], 16), int(t[4:6], 16)
+
+
+def _build(
+    cfg: DisplayConfig,
+    det: DetectionResult,
+    width: int,
+    height: int,
+    shape: str,
+    *,
+    publish: Callable[[Payload], None] | None = None,
+    eye_color: str = "#3EE0E6",
+    bus_fps: float = 12.0,
+) -> Display:
     backend = det.backend
+    if backend == "bus":
+        from robot.hal.display.bus import BusDisplay
+
+        assert publish is not None
+        return BusDisplay(width, height, publish=publish, eye_color=hex_rgb(eye_color), max_fps=bus_fps, shape=shape)
     if backend == "window":
         return WindowDisplay(width, height, shape=shape, fullscreen=cfg.fullscreen)
     if backend == "kms":

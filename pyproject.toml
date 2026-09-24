@@ -28,6 +28,7 @@ dependencies = [
   "pygame-ce>=2.5",
   "opencv-python-headless>=4.10",
   "httpx>=0.27",
+  "pyserial>=3.5",
 ]
 
 [project.optional-dependencies]
@@ -126,6 +127,7 @@ module = [
   "smbus2", "spidev",
   "sherpa_onnx", "sounddevice", "openwakeword", "openwakeword.*", "onnxruntime",
   "VL53L1X",
+  "serial", "serial.*",
   "hypothesis", "hypothesis.*",
 ]
 ignore_missing_imports = true
@@ -140,7 +142,7 @@ type = "layers"
 layers = [
   "robot.cli",
   "robot.sim | robot.doctor",
-  "robot.orchestrator | robot.face | robot.perception | robot.voice | robot.brain | robot.motion | robot.safety",
+  "robot.orchestrator | robot.face | robot.perception | robot.voice | robot.brain | robot.motion | robot.safety | robot.openmv",
   "robot.memory | robot.provision",
   "robot.hal",
   "robot.core",
@@ -156,6 +158,7 @@ modules = [
   "robot.brain",
   "robot.motion",
   "robot.safety",
+  "robot.openmv",
 ]
 
 # ---------------------------------------------------------------------------

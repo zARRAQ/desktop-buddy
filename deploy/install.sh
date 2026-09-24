@@ -12,7 +12,7 @@ fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 USER_NAME="${SUDO_USER:-${USER}}"
 VENV="${REPO}/.venv"
-SERVICES=(broker safety motion face perception voice brain orchestrator power)
+SERVICES=(broker safety motion face perception voice brain orchestrator power openmv)
 UNIT_DIR=/etc/systemd/system
 
 if [[ "${1:-}" == "--uninstall" ]]; then
@@ -46,7 +46,7 @@ if [[ "$(systemctl get-default 2>/dev/null)" == "graphical.target" ]]; then
 fi
 
 # groups for peripherals
-for g in video audio gpio i2c spi render input; do
+for g in video audio gpio i2c spi render input dialout; do
   getent group "$g" >/dev/null 2>&1 || groupadd -r "$g"
   usermod -aG "$g" "${USER_NAME}"
 done
@@ -83,12 +83,14 @@ MaxRetentionSec=14day
 J
 systemctl restart systemd-journald || true
 
-# power monitor only when enabled in config
-if "${VENV}/bin/robot" --config-dir "${REPO}/config" config show power 2>/dev/null | grep -q "enabled: true"; then
-  systemctl enable robot-power.service >/dev/null
-else
-  systemctl disable robot-power.service >/dev/null 2>&1 || true
-fi
+# optional bridges only when enabled in config
+for opt in power openmv; do
+  if "${VENV}/bin/robot" --config-dir "${REPO}/config" config show "${opt}" 2>/dev/null | grep -q "enabled: true"; then
+    systemctl enable "robot-${opt}.service" >/dev/null
+  else
+    systemctl disable "robot-${opt}.service" >/dev/null 2>&1 || true
+  fi
+done
 
 echo
 echo "installed. Next:"
