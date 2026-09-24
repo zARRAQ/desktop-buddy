@@ -26,7 +26,7 @@ LCD_H = 160
 BOOT_EYE = (62, 224, 230)  # same cyan as the Pi's default face
 BOOT_BG = (0, 0, 0)
 LED_PIN = "P9"  # illumination LEDs, if the unit wires them to a pin
-VERSION = "buddy-openmv 4"
+VERSION = "buddy-openmv 5"
 
 cam_w, cam_h, quality, fps, leds_on = 320, 240, 70, 10, 0
 seq = 0
@@ -80,9 +80,19 @@ palette = image.Image(256, 1, image.RGB565)
 fast_binary = True  # zero-copy path; falls back to drawing runs if the firmware lacks it
 
 
+_palette_for = None
+
+
 def set_palette(fg, bg):
+    """Index 0 is background; every other index is the eye colour, so it does not matter
+    whether the firmware maps a set bit to 1 or to 255 when it converts binary to grey."""
+    global _palette_for
+    if _palette_for == (fg, bg):
+        return
     palette.set_pixel(0, 0, bg)
-    palette.set_pixel(255, 0, fg)
+    for i in range(1, 256):
+        palette.set_pixel(i, 0, fg)
+    _palette_for = (fg, bg)
 
 
 def rgb565_to_tuple(v):
@@ -92,21 +102,39 @@ def rgb565_to_tuple(v):
 faces_shown = 0
 
 
+face_errors = 0
+
+
 def show_face(w, h, fg, bg, bits):
+    """Draw one 1-bit face frame. Any failure is logged and the boot eyes are shown instead,
+    so the screen is never left blank."""
+    global face_errors
+    try:
+        _show_face(w, h, fg, bg, bits)
+    except Exception as exc:
+        face_errors += 1
+        if face_errors <= 3 or face_errors % 100 == 0:
+            log("face draw failed (%d): %r" % (face_errors, exc))
+        boot_eyes()
+
+
+def _show_face(w, h, fg, bg, bits):
     global fast_binary, faces_shown
     faces_shown += 1
     fgc, bgc = rgb565_to_tuple(fg), rgb565_to_tuple(bg)
     if fast_binary:
         try:
             set_palette(fgc, bgc)
-            img = image.Image(w, h, image.BINARY, buffer=bits)
+            img = image.Image(w, h, image.BINARY, buffer=bytearray(bits))
             screen.show(img.to_rgb565(color_palette=palette))
-            if faces_shown == 0:
+            if faces_shown == 1:
                 log("face %dx%d via fast binary path" % (w, h))
             return
         except Exception as exc:
             fast_binary = False
             log("binary fast path unavailable (%r); drawing runs instead" % exc)
+    if faces_shown == 1 or not fast_binary and faces_shown % 200 == 0:
+        log("face %dx%d via run drawing" % (w, h))
     # slow path: draw horizontal runs of lit pixels
     img = image.Image(w, h, image.RGB565)
     if bgc != (0, 0, 0):
@@ -198,7 +226,7 @@ def poll_pi():
 
     Face frames are coalesced: when several are waiting, only the newest is drawn, so a slow
     screen never starves the camera."""
-    global cam_w, cam_h, quality, fps, leds_on, last_pi_ms
+    global cam_w, cam_h, quality, fps, leds_on, last_pi_ms, last_face_ms, idle_eyes
     shown = False
     pending_face = None
     while usb.any():
@@ -234,6 +262,8 @@ def poll_pi():
         w, h, fg, bg = struct.unpack("<HHHH", pending_face[:8])
         show_face(w, h, fg, bg, pending_face[8:])
         shown = True
+        last_face_ms = time.ticks_ms()
+        idle_eyes = False
     return shown
 
 
@@ -289,6 +319,8 @@ log("boot: %s" % VERSION)
 next_blink = time.ticks_add(time.ticks_ms(), 2500)
 next_frame = time.ticks_ms()
 connected = False
+last_face_ms = 0
+idle_eyes = True
 
 while True:
     try:
@@ -309,6 +341,10 @@ while True:
                 next_frame = time.ticks_add(now, 1000 // fps)
             else:
                 time.sleep_ms(2)
+            if time.ticks_diff(now, last_face_ms) > 3000 and not idle_eyes:
+                # the Pi is here but its face service is not sending: show eyes rather than nothing
+                boot_eyes()
+                idle_eyes = True
         else:
             # idle animation: blink every few seconds until the Pi shows up
             if time.ticks_diff(now, next_blink) >= 0:

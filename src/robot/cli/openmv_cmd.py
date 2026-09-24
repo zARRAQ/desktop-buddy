@@ -124,6 +124,7 @@ def openmv_probe(
     for _ in range(3):
         link.send_face(o.lcd_width, o.lcd_height, fg, 0, proto.pack_bitmap(mask))
         time.sleep(0.7)
+    time.sleep(1.5)  # give the board time to report how the face went
     link.close()
     typer.echo(f"board      : {pong[0] if pong else 'no answer to ping (old script on the board?)'}")
     fps = len(sizes) / max(seconds, 1e-6)
