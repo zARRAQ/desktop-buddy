@@ -20,6 +20,7 @@ from robot.cli.llm_cmd import llm_app
 from robot.cli.memory_cmd import enroll_command, memory_app
 from robot.cli.openmv_cmd import openmv_app
 from robot.cli.provision_cmd import provision_command
+from robot.cli.status_cmd import status_command
 
 app = typer.Typer(
     add_completion=False,
@@ -37,6 +38,7 @@ app.add_typer(openmv_app, name="openmv", help="OpenMV camera board: flash the br
 app.add_typer(audio_app, name="audio", help="List sound devices; test microphone, speaker and speech engines")
 app.add_typer(llm_app, name="llm", help="Local language model: install llama.cpp, test a conversation")
 app.command("provision")(provision_command)
+app.command("status")(status_command)
 app.command("enroll")(enroll_command)
 
 SERVICES = ("broker", "safety", "motion", "face", "perception", "voice", "brain", "orchestrator", "power", "openmv")

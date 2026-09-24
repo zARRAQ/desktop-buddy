@@ -377,3 +377,17 @@ def test_face_service_maps_bus_topics_to_modes(config, hub):
     assert svc.animator.mode == "thinking"
     svc.tick(0.02)
     svc.teardown()
+
+
+def test_face_overlay_expires_without_orchestrator_updates(config, hub):
+    from robot.face.service import FaceService
+    from robot.hal.display.null import NullDisplay
+
+    svc = FaceService(config, hub.client("face"), display=NullDisplay(64, 64))
+    svc.setup()
+    svc.animator.set_mode("listening")
+    for _ in range(10):
+        svc.animator.update(5.0)  # 50 animator-seconds pass with no state change
+    svc.tick(0.03)
+    assert svc.animator.mode == "none"
+    svc.teardown()

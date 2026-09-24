@@ -176,10 +176,13 @@ class VoiceService(Service):
         self.state = VoiceState.IDLE
         if e.wake is not None:
             e.wake.reset()
-        if timed_out or e.stt is None:
-            self.bus.publish_payload(VoiceListening(state="timeout" if timed_out else "end"))
-            if e.stt is None and not timed_out:
-                self.log.warning("no speech-to-text engine; utterance dropped")
+        if timed_out:
+            self.bus.publish_payload(VoiceListening(state="timeout"))
+            return
+        if e.stt is None:
+            self.bus.publish_payload(VoiceListening(state="end"))
+            self.log.warning("no speech-to-text engine; utterance dropped")
+            self.bus.publish_payload(VoiceTranscript(text="", final=True, duration_s=0.0))
             return
         self.bus.publish_payload(VoiceListening(state="end"))
         audio = np.concatenate(self._buffer) if self._buffer else np.zeros(1600, dtype=np.int16)

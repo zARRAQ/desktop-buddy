@@ -294,3 +294,31 @@ def test_presence_listening_without_a_wake_word(config, hub: LocalHub):
         svc.tick(0.04)
     assert svc.state == VoiceState.IDLE
     svc.teardown()
+
+
+def test_orchestrator_recovers_from_a_listening_that_never_ends(config, tmp_path):
+    o, published, _raw, clk, _mem = make(config, tmp_path)
+    o.tick()  # boot -> idle
+    o.on_faces(faces())
+    o.on_listening("start")
+    assert o.state == State.LISTENING
+    clk.t += config.voice.listen_timeout_s + config.voice.vad.max_utterance_s + 11
+    o.on_faces(faces())
+    o.tick()
+    assert o.state == State.ATTENDING
+    assert any(getattr(p, "name", "") == "confusion" for p in published)
+
+
+def test_voice_without_stt_still_reports_an_empty_transcript(config, hub: LocalHub):
+    engines = fake_engines()
+    engines.stt = None
+    svc = VoiceService(config, hub.client("voice"), engines=engines)
+    probe = hub.client("probe")
+    probe.subscribe("voice.")
+    svc.setup()
+    svc._start_listening()
+    svc._finish_listening(timed_out=False)
+    topics = []
+    while (e := probe.recv(0)) is not None:
+        topics.append((e.topic, e.data.get("state") or e.data.get("text")))
+    assert ("voice.listening", "end") in topics and ("voice.transcript", "") in topics

@@ -194,6 +194,9 @@ class FaceAnimator:
             face.center_y -= OVERLAY_EYE_LIFT * ease_in_out(self._mode_blend) / Y_FACTOR
         return face
 
+    def mode_age_s(self) -> float:
+        return self.time - self._mode_since
+
     def overlay(self) -> Overlay:
         """The overlay for the frame produced by the last :meth:`update`."""
         ov = Overlay(mode=self.mode, blend=ease_in_out(self._mode_blend))

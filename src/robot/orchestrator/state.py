@@ -327,6 +327,11 @@ class Orchestrator:
         if self.state == State.THINKING and now - self._state_since > self.config.brain.timeout_s + 5:
             self.pending_request = None
             self._say("Sorry, I lost my train of thought.", expression="embarrassment")
+        v = self.config.voice
+        if self.state == State.LISTENING and now - self._state_since > v.listen_timeout_s + v.vad.max_utterance_s + 10:
+            # the voice service should have sent a timeout or a transcript by now; do not hang
+            self._express("confusion", hold_ms=1200)
+            self._set_state(State.ATTENDING if self.attention.track_id is not None else State.IDLE)
         if self.state == State.IDLE and now - self.last_activity > self.config.orchestrator.sleep_after_s:
             self._express("asleep")
             self.publish(MotionCommand(type="relax"))

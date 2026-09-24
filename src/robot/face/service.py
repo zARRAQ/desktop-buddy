@@ -126,6 +126,12 @@ class FaceService(Service):
         self.animator.quality.idle_drift = self.quality.idle_drift and self.config.face.idle_drift
         self.animator.quality.saccade_rate = self.quality.saccade_rate
         t0 = time.perf_counter()
+        # a dead or stuck orchestrator must not leave bars, dots or a mouth on screen forever
+        limits = {"listening": 45.0, "thinking": self.config.brain.timeout_s + 20.0, "speaking": 120.0}
+        limit = limits.get(self.animator.mode)
+        if limit is not None and self.animator.mode_age_s() > limit:
+            self.log.warning("%s overlay expired after %.0fs without a state change", self.animator.mode, limit)
+            self.animator.set_mode("none")
         face = self.animator.update(dt)
         self.renderer.render(
             face, self.pipeline.surface, antialias=self.quality.antialias, overlay=self.animator.overlay()
