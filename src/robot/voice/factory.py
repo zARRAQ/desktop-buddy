@@ -56,7 +56,7 @@ def build_engines(cfg: VoiceConfig, *, fake: bool = False) -> VoiceEngines:
     try:
         from robot.voice.audio import SounddeviceSink
 
-        sink = SounddeviceSink(cfg.audio.output_device)
+        sink = SounddeviceSink(cfg.audio.output_device, lead_in_ms=cfg.audio.lead_in_ms)
         sink.check()
     except Exception as exc:
         log.warning("no speaker (%s); speech is logged, not played", exc)

@@ -218,6 +218,11 @@ silent, click the speaker icon in the top bar of the desktop and choose the USB 
 both output and input, then run the test again. If it still does not work, send me the output
 of both commands.
 
+A **Bluetooth speaker** works too: pair it from the Bluetooth icon in the top bar, then choose it
+as the output in the speaker icon and keep the microphone on the USB device. Bluetooth speakers
+doze between sounds and clip the first word when they wake, so add a little silence before each
+utterance: `uv run robot config set voice.audio.lead_in_ms 400`.
+
 ## Step 9. Run the robot
 
 ```bash

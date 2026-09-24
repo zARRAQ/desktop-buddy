@@ -93,6 +93,7 @@ voice:
     output_device: null
     sample_rate: 16000
     block_ms: 80
+    lead_in_ms: 0        # silence before each utterance; 400 for a Bluetooth speaker that clips the first word
   vad:
     silence_ms: 700
     max_utterance_s: 12

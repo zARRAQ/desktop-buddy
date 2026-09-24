@@ -46,18 +46,23 @@ class SounddeviceSource(AudioSource):
 
 
 class SounddeviceSink(AudioSink):
-    def __init__(self, device: str | int | None = None) -> None:
+    def __init__(self, device: str | int | None = None, *, lead_in_ms: int = 0) -> None:
         import sounddevice as sd
 
         self._sd = sd
         self.device = device
+        self.lead_in_ms = lead_in_ms
 
     def check(self) -> None:
         """Raise now, at construction time, if there is no usable output device."""
         self._sd.check_output_settings(device=self.device, channels=1)
 
     def play(self, samples: np.ndarray, sample_rate: int) -> None:
-        self._sd.play(samples.astype(np.float32), sample_rate, device=self.device, blocking=True)
+        out = samples.astype(np.float32)
+        if self.lead_in_ms > 0:
+            # a Bluetooth speaker in standby drops the start of a stream; give it silence to wake on
+            out = np.concatenate([np.zeros(int(sample_rate * self.lead_in_ms / 1000), dtype=np.float32), out])
+        self._sd.play(out, sample_rate, device=self.device, blocking=True)
 
 
 def list_devices() -> list[dict[str, Any]]:

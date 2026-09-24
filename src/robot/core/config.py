@@ -168,6 +168,13 @@ class AudioConfig(StrictModel):
     output_device: str | int | None = None
     sample_rate: int = 16000
     block_ms: int = 80
+    lead_in_ms: int = Field(
+        default=0,
+        ge=0,
+        le=2000,
+        description="Silence played before each utterance. Bluetooth speakers wake from standby "
+        "and swallow the first few hundred ms; 400 keeps the first word",
+    )
 
 
 class VadConfig(StrictModel):
