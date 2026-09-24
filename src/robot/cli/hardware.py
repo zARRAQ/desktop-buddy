@@ -5,11 +5,16 @@ from __future__ import annotations
 import os
 import statistics
 import time
+from typing import TYPE_CHECKING
 
 import typer
 
 from robot.cli.common import get_ctx
-from robot.core.config import RobotConfig, write_local_section, write_local_setting
+from robot.core.config import DisplayConfig, RobotConfig, write_local_section, write_local_setting
+
+if TYPE_CHECKING:
+    from robot.hal.camera.base import Camera
+    from robot.hal.openmv.link import OpenMvLink
 
 display_app = typer.Typer(no_args_is_help=True)
 camera_app = typer.Typer(no_args_is_help=True)
@@ -182,6 +187,10 @@ def camera_test(
     cfg = get_ctx(ctx).config()
     pygame.init()
     cam = open_camera(cfg.camera)
+    link = None
+    if cfg.openmv.enabled and cam.info.backend in ("null", "bus"):
+        # no bridge service runs during this test, so talk to the board directly
+        cam, link = _openmv_feed(cfg)
     if cam.info.backend == "null":
         typer.secho("no camera", fg=typer.colors.RED)
         raise typer.Exit(1)
@@ -190,7 +199,7 @@ def camera_test(
         from robot.perception.factory import open_backend
 
         backend = open_backend(cfg.perception)
-    disp = open_display(cfg.display)
+    disp = open_display(_preview_display(cfg.display))
     pipe = DisplayPipeline(cfg.display, disp)
     font = pygame.font.SysFont(None, 20)
     frames = 0
@@ -232,7 +241,44 @@ def camera_test(
                 t_end = 0
     pipe.close()
     cam.close()
+    if link is not None:
+        link.close()
     typer.echo(f"{frames} frames, {frames / max(1e-6, time.monotonic() - t0):.1f} fps")
+    if frames == 0 and link is not None:
+        typer.secho(
+            "no frames from the OpenMV. Is it showing eyes (script running)? Try `robot openmv probe`.",
+            fg=typer.colors.YELLOW,
+        )
+
+
+def _openmv_feed(cfg: RobotConfig) -> tuple[Camera, OpenMvLink]:
+    """A bus camera fed straight from the board's serial port, for one-off tests."""
+    from robot.hal.camera.bus import BusCamera
+    from robot.hal.openmv.link import OpenMvLink
+
+    o = cfg.openmv
+    cam = BusCamera(o.width, o.height)
+    cam.open()
+    link = OpenMvLink(
+        None if o.port == "auto" else o.port,
+        on_frame=lambda w, h, seq, jpeg: cam.push({"width": w, "height": h, "seq": seq, "jpeg": jpeg}),
+        on_log=lambda text: typer.echo(f"board: {text}"),
+    )
+    try:
+        link.open()
+    except Exception as exc:
+        typer.secho(f"OpenMV: {exc}", fg=typer.colors.RED)
+        raise typer.Exit(1) from exc
+    link.send_config(o.width, o.height, o.jpeg_quality, o.fps, o.leds)
+    typer.echo(f"OpenMV on {link.port_name}: {o.width}x{o.height} @ {o.fps} fps requested")
+    return cam, link
+
+
+def _preview_display(display: DisplayConfig) -> DisplayConfig:
+    """The camera preview needs a real screen; a `bus` (OpenMV LCD) display cannot show it."""
+    if display.backend == "bus":
+        return display.model_copy(update={"backend": "auto", "width": None, "height": None})
+    return display
 
 
 @camera_app.command("bench")
