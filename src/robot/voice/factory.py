@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from robot.core import paths
@@ -22,13 +22,17 @@ class VoiceEngines:
     vad: Vad
     stt: SttEngine | None
     tts: TtsEngine | None
+    errors: dict[str, str] = field(default_factory=dict)  # engine name -> why it is missing
 
     def describe(self) -> str:
-        return (
+        text = (
             f"in={type(self.source).__name__} out={type(self.sink).__name__} "
             f"wake={self.wake.name if self.wake else 'none'} stt={self.stt.name if self.stt else 'none'} "
             f"tts={self.tts.name if self.tts else 'none'}"
         )
+        if self.errors:
+            text += " | " + "; ".join(f"{k}: {v}" for k, v in self.errors.items())
+        return text
 
 
 def voice_models_dir() -> Path:
@@ -57,10 +61,17 @@ def build_engines(cfg: VoiceConfig, *, fake: bool = False) -> VoiceEngines:
     except Exception as exc:
         log.warning("no speaker (%s); speech is logged, not played", exc)
         sink = NullSink()
-    return VoiceEngines(source, sink, _wake(cfg), _vad(), _stt(cfg), _tts(cfg))
+    # sherpa-onnx (vad, stt, tts) loads before openWakeWord: both bundle an ONNX runtime, and
+    # if two copies in one process ever clash, the engines the conversation depends on win
+    errors: dict[str, str] = {}
+    vad = _vad()
+    stt = _stt(cfg, errors)
+    tts = _tts(cfg, errors)
+    wake = _wake(cfg, errors)
+    return VoiceEngines(source, sink, wake, vad, stt, tts, errors)
 
 
-def _wake(cfg: VoiceConfig) -> WakeWordEngine | None:
+def _wake(cfg: VoiceConfig, errors: dict[str, str] | None = None) -> WakeWordEngine | None:
     eng = cfg.wake.engine
     if eng == "none":
         return None
@@ -92,7 +103,9 @@ def _wake(cfg: VoiceConfig) -> WakeWordEngine | None:
             if eng == "sherpa_kws":
                 raise
             log.info("sherpa kws unavailable (%s)", exc)
-    log.warning("no wake word engine: say nothing, or trigger listening over the bus (voice.wake)")
+    log.warning("no wake word engine: presence listening and the bus (voice.wake) still work")
+    if errors is not None:
+        errors["wake"] = "no engine loaded (see log)"
     return None
 
 
@@ -108,7 +121,7 @@ def _vad() -> Vad:
     return EnergyVad()
 
 
-def _stt(cfg: VoiceConfig) -> SttEngine | None:
+def _stt(cfg: VoiceConfig, errors: dict[str, str] | None = None) -> SttEngine | None:
     eng = cfg.stt.engine
     if eng == "none":
         return None
@@ -128,10 +141,12 @@ def _stt(cfg: VoiceConfig) -> SttEngine | None:
         if eng != "auto":
             raise
         log.warning("speech to text unavailable (%s)", exc)
+        if errors is not None:
+            errors["stt"] = f"{type(exc).__name__}: {exc}"[:160]
     return None
 
 
-def _tts(cfg: VoiceConfig) -> TtsEngine | None:
+def _tts(cfg: VoiceConfig, errors: dict[str, str] | None = None) -> TtsEngine | None:
     eng = cfg.tts.engine
     if eng == "none":
         return None
@@ -145,4 +160,22 @@ def _tts(cfg: VoiceConfig) -> TtsEngine | None:
         if eng != "auto":
             raise
         log.warning("text to speech unavailable (%s)", exc)
+        if errors is not None:
+            errors["tts"] = f"{type(exc).__name__}: {exc}"[:160]
     return None
+
+
+def retry_missing(engines: VoiceEngines, cfg: VoiceConfig) -> bool:
+    """Try again to load the engines that failed at start. Returns True if any came up."""
+    changed = False
+    if engines.stt is None and cfg.stt.engine not in ("none", "fake"):
+        engines.stt = _stt(cfg, engines.errors)
+        if engines.stt is not None:
+            engines.errors.pop("stt", None)
+            changed = True
+    if engines.tts is None and cfg.tts.engine not in ("none", "fake"):
+        engines.tts = _tts(cfg, engines.errors)
+        if engines.tts is not None:
+            engines.errors.pop("tts", None)
+            changed = True
+    return changed

@@ -116,6 +116,8 @@ def status_command(
             f" (presence {v.get('presence_triggers')})  transcripts={v.get('transcripts')}"
         )
         typer.echo(f"                {v.get('engines')}")
+        if v.get("errors"):
+            typer.secho(f"                engine failures: {v.get('errors')}", fg=typer.colors.RED)
     frames = counts.get("camera.frame", 0)
     if frames:
         typer.echo(f"  camera        {frames / seconds:.1f} frames/s over the bus")

@@ -29,7 +29,7 @@ from robot.core.messages import (
 )
 from robot.core.service import Service
 from robot.voice.base import to_float32
-from robot.voice.factory import VoiceEngines, build_engines
+from robot.voice.factory import VoiceEngines, build_engines, retry_missing
 from robot.voice.fake import FakeStt, SilentSource
 
 
@@ -69,6 +69,7 @@ class VoiceService(Service):
         self._quiet_until = 0.0  # after speaking: give the room time to stop echoing us
         self.presence_triggers = 0
         self._last_status = 0.0
+        self._next_retry = 0.0
 
     def setup(self) -> None:
         if not self.config.voice.enabled:
@@ -96,6 +97,10 @@ class VoiceService(Service):
         if e is None:
             return
         now_s = time.monotonic()
+        if (e.stt is None or e.tts is None) and now_s >= self._next_retry and self.state == VoiceState.IDLE:
+            self._next_retry = now_s + 30.0
+            if retry_missing(e, self.config.voice):
+                self.log.info("voice engines now: %s", e.describe())
         if now_s - self._last_status >= 2.0:
             self._last_status = now_s
             self.bus.publish_payload(
@@ -106,6 +111,7 @@ class VoiceService(Service):
                     wakes=self.wakes,
                     presence_triggers=self.presence_triggers,
                     transcripts=self.transcripts,
+                    errors="; ".join(f"{k}: {v}" for k, v in e.errors.items()),
                 )
             )
         if self.state == VoiceState.SPEAKING:

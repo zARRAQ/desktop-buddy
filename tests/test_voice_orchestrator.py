@@ -322,3 +322,19 @@ def test_voice_without_stt_still_reports_an_empty_transcript(config, hub: LocalH
     while (e := probe.recv(0)) is not None:
         topics.append((e.topic, e.data.get("state") or e.data.get("text")))
     assert ("voice.listening", "end") in topics and ("voice.transcript", "") in topics
+
+
+def test_engine_failures_are_recorded_and_retried(config):
+    from robot.voice.factory import build_engines, retry_missing
+
+    # no models on this machine: sherpa engines are missing and the reason is recorded
+    e = build_engines(config.voice)
+    assert e.stt is None and e.tts is None
+    assert "stt" in e.errors and "tts" in e.errors
+    assert "stt:" in e.describe()
+    assert retry_missing(e, config.voice) is False  # still nothing to load; must not raise
+    for eng in (e.wake, e.stt, e.tts):
+        if eng is not None:
+            eng.close()
+    e.source.close()
+    e.sink.close()

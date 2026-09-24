@@ -109,6 +109,7 @@ class VoiceStatus(Payload):
     wakes: int = 0
     presence_triggers: int = 0
     transcripts: int = 0
+    errors: str = ""
 
 
 # --- brain ---------------------------------------------------------------------------
