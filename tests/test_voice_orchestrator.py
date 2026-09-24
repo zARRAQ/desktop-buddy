@@ -249,3 +249,48 @@ def test_energy_vad_and_silent_source_injection():
     src.read(0.1)
     c = src.read(0.1)
     assert c is not None and c[:440].all() and not c[440:].any()
+
+
+def test_presence_listening_without_a_wake_word(config, hub: LocalHub):
+    """Someone the camera sees starts talking: the voice service listens with no wake word,
+    keeps the pre-roll, and ignores the microphone briefly after it spoke itself."""
+    engines = fake_engines()
+    svc = VoiceService(config, hub.client("voice"), engines=engines)
+    svc.bus.subscribe(*svc.subscriptions)
+    svc.setup()
+    loud = (np.random.default_rng(0).standard_normal(16000 * 2) * 8000).astype(np.int16)
+    # nobody in view: loud audio does nothing
+    engines.source.inject(loud[:16000])  # type: ignore[union-attr]
+    for _ in range(15):
+        svc.tick(0.04)
+    assert svc.state == VoiceState.IDLE and svc.presence_triggers == 0
+    # a person appears (orchestrator says attending) and speaks
+    from robot.core.messages import Envelope, OrchestratorState
+
+    svc.on_message(
+        Envelope(
+            topic="orchestrator.state", ts=0.0, src="orch", seq=1, data=OrchestratorState(state="attending").to_data()
+        )
+    )
+    assert svc.person_present
+    engines.source.inject(loud)  # type: ignore[union-attr]
+    for _ in range(3):
+        svc.tick(0.04)
+    assert svc.state == VoiceState.LISTENING and svc.presence_triggers == 1
+    assert len(svc._buffer) >= 2  # pre-roll blocks were kept
+    # right after speaking, the guard keeps the mic closed so the robot does not hear itself
+    svc.state = VoiceState.IDLE
+    svc._buffer = []
+    svc._quiet_until = time.monotonic() + 10.0
+    engines.source.inject(loud)  # type: ignore[union-attr]
+    for _ in range(5):
+        svc.tick(0.04)
+    assert svc.state == VoiceState.IDLE and svc.presence_triggers == 1
+    # switched off in config: never triggers
+    svc.config.voice.listen_on_presence = False
+    svc._quiet_until = 0.0
+    engines.source.inject(loud)  # type: ignore[union-attr]
+    for _ in range(5):
+        svc.tick(0.04)
+    assert svc.state == VoiceState.IDLE
+    svc.teardown()

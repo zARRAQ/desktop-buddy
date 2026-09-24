@@ -11,6 +11,7 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from collections import deque
 from enum import Enum
 
 import numpy as np
@@ -32,7 +33,7 @@ class VoiceState(str, Enum):
 
 class VoiceService(Service):
     name = "voice"
-    subscriptions = ("voice.say", "voice.wake", "voice.listen")
+    subscriptions = ("voice.say", "voice.wake", "voice.listen", "orchestrator.state")
     tick_hz = 25.0
 
     def __init__(
@@ -53,6 +54,12 @@ class VoiceService(Service):
         self._wake_from_bus = False
         self.transcripts = 0
         self.wakes = 0
+        self.person_present = False  # from orchestrator.state: someone is in front of the camera
+        self._preroll: deque[np.ndarray] = deque(
+            maxlen=max(1, config.voice.presence_preroll_ms // max(config.voice.audio.block_ms, 1))
+        )
+        self._quiet_until = 0.0  # after speaking: give the room time to stop echoing us
+        self.presence_triggers = 0
 
     def setup(self) -> None:
         if not self.config.voice.enabled:
@@ -71,6 +78,8 @@ class VoiceService(Service):
             and self.state == VoiceState.IDLE
         ):
             self._wake_from_bus = True
+        elif env.topic == "orchestrator.state":
+            self.person_present = env.data.get("state") in ("attending", "listening", "thinking", "speaking")
 
     # -- loop ----------------------------------------------------------------------------
     def tick(self, dt: float) -> None:
@@ -80,6 +89,7 @@ class VoiceService(Service):
         if self.state == VoiceState.SPEAKING:
             if self._speaker is not None and not self._speaker.is_alive():
                 self._speaker = None
+                self._quiet_until = time.monotonic() + self.config.voice.after_speech_guard_ms / 1000.0
                 self.state = VoiceState.IDLE
                 self.bus.publish_payload(VoiceSpeaking(state="end", text=self._speaking_text))
                 if e.wake is not None:
@@ -92,25 +102,46 @@ class VoiceService(Service):
         if self.state == VoiceState.IDLE:
             fired = self._wake_from_bus
             self._wake_from_bus = False
-            if not fired and e.wake is not None and block is not None:
-                score = e.wake.process(block)
-                if score >= self.config.voice.wake.threshold:
-                    fired = True
-                    self.bus.publish_payload(VoiceWake(word=self.config.voice.wake.model, score=score))
+            spoke = False
+            if block is not None:
+                self._preroll.append(block)
+                quiet = time.monotonic() < self._quiet_until
+                if not fired and e.wake is not None and not quiet:
+                    score = e.wake.process(block)
+                    if score >= self.config.voice.wake.threshold:
+                        fired = True
+                        self.bus.publish_payload(VoiceWake(word=self.config.voice.wake.model, score=score))
+                if (
+                    not fired
+                    and self.config.voice.listen_on_presence
+                    and self.person_present
+                    and not quiet
+                    and e.vad.is_speech(block)
+                ):
+                    # someone we can see started talking: that is the wake word
+                    fired = spoke = True
+                    self.presence_triggers += 1
+                    self.bus.publish_payload(VoiceWake(word="presence", score=1.0))
             if fired:
-                self._start_listening()
+                self._start_listening(speaking_now=spoke)
         elif self.state == VoiceState.LISTENING:
             self._listen_step(block)
 
-    def _start_listening(self) -> None:
+    def _start_listening(self, *, speaking_now: bool = False) -> None:
         e = self.engines
         assert e is not None
         self.wakes += 1
         self.state = VoiceState.LISTENING
-        self._buffer = []
         self._listen_started = time.monotonic()
-        self._speech_started = None
-        e.vad.reset()
+        if speaking_now:
+            # keep the audio from just before the trigger so the first word survives
+            self._buffer = list(self._preroll)
+            self._speech_started = self._last_speech = self._listen_started
+        else:
+            self._buffer = []
+            self._speech_started = None
+            e.vad.reset()
+        self._preroll.clear()
         self.bus.publish_payload(VoiceListening(state="start"))
 
     def _listen_step(self, block: np.ndarray | None) -> None:

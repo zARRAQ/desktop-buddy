@@ -174,6 +174,14 @@ class VoiceConfig(StrictModel):
     audio: AudioConfig = AudioConfig()
     vad: VadConfig = VadConfig()
     listen_timeout_s: float = 8.0
+    listen_on_presence: bool = Field(
+        default=True,
+        description="Start listening when someone the camera sees begins to speak, no wake word needed",
+    )
+    presence_preroll_ms: int = Field(default=600, ge=0, le=3000, description="Audio kept from before the trigger")
+    after_speech_guard_ms: int = Field(
+        default=800, ge=0, description="Ignore the microphone this long after the robot stops talking (echo)"
+    )
 
 
 class LlamaServerConfig(StrictModel):

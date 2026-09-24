@@ -206,13 +206,17 @@ A live camera picture with boxes around faces, for fifteen seconds; it stops by 
 picture is mirrored the wrong way or slow, note it for Step 10.
 
 ```bash
-speaker-test -t wav -c 2 -l 1
-arecord -d 3 test.wav && aplay test.wav
+uv run robot audio list
+uv run robot audio test
 ```
 
-The first plays a voice saying "front left, front right". The second records three seconds
-from the microphone and plays it back. If you hear nothing, run `aplay -l` and `arecord -l`,
-which list the sound devices, and ask for help with their output.
+The first lists every microphone and speaker the Pi can see, with the current defaults
+marked. A USB speakerphone (a conference speaker with a built-in microphone) shows up as one
+device with both inputs and outputs. The second records three seconds, plays them back, writes
+down what it understood, and then says a sentence in the robot's own voice. If the playback is
+silent, click the speaker icon in the top bar of the desktop and choose the USB device for
+both output and input, then run the test again. If it still does not work, send me the output
+of both commands.
 
 ## Step 9. Run the robot
 

@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 
 from robot import __version__
+from robot.cli.audio_cmd import audio_app
 from robot.cli.autostart_cmd import autostart_app
 from robot.cli.common import Ctx, get_ctx
 from robot.cli.hardware import calibrate_app, camera_app, display_app, safety_app
@@ -32,6 +33,7 @@ app.add_typer(safety_app, name="safety", help="Prove the motor enable interlock"
 app.add_typer(memory_app, name="memory", help="List and forget people and facts")
 app.add_typer(autostart_app, name="autostart", help="Start the robot when the desktop logs in")
 app.add_typer(openmv_app, name="openmv", help="OpenMV camera board: flash the bridge script, probe the link")
+app.add_typer(audio_app, name="audio", help="List sound devices; test microphone, speaker and speech engines")
 app.command("provision")(provision_command)
 app.command("enroll")(enroll_command)
 
