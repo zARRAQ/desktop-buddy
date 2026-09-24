@@ -332,8 +332,16 @@ applies; the OpenMV replaces the webcam step and gives the robot a second, tiny 
 
 ## What to add next, in order
 
-1. **Language model.** Follow `INSTALL.md` B6 (llama.cpp) and set `brain.managed: llama_server`
-   in `config/local.yaml`. Real conversation instead of scripted replies.
+1. **Language model.** Three commands, one line at a time:
+   ```bash
+   uv run robot llm install
+   uv run robot provision --group llm
+   uv run robot llm test
+   ```
+   The second downloads about 0.8 GB. The third asks the model one question and prints the
+   answer with its speed. From then on `robot run all` starts the model with the robot and it
+   holds real conversations instead of canned replies. Expect a pause of a few seconds before
+   each answer; the thinking dots cover it.
 2. **Hailo AI HAT.** `INSTALL.md` B4. Faster face recognition; the CPU version works without it.
 3. **Motors and servos.** Read `HARDWARE.md` section 5 first, in full, and run
    `robot safety selftest` and `robot safety killtest` before a motor ever gets power.

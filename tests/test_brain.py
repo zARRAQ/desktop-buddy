@@ -109,3 +109,38 @@ def test_chat_client_against_fake_server(fake_llm):
         _Handler.reject_json_mode = False
     c.close()
     assert ChatClient("http://127.0.0.1:1/v1").healthy() is False
+
+
+def test_llm_install_helpers(tmp_path):
+    from robot.cli.llm_cmd import asset_name, find_binary, tag_from_location
+
+    assert asset_name("b11146", "aarch64") == "llama-b11146-bin-ubuntu-arm64.tar.gz"
+    assert asset_name("b11146", "x86_64") == "llama-b11146-bin-ubuntu-x64.tar.gz"
+    assert tag_from_location("https://github.com/ggml-org/llama.cpp/releases/tag/v0.5.0") == "v0.5.0"
+    assert tag_from_location("") is None
+    (tmp_path / "deep" / "bin").mkdir(parents=True)
+    (tmp_path / "deep" / "bin" / "llama-server").write_text("")
+    assert find_binary(tmp_path) == tmp_path / "deep" / "bin" / "llama-server"
+    assert find_binary(tmp_path, "nothing") is None
+
+
+def test_llm_resolve_nightly_tag_follows_the_pointer_file():
+    import httpx
+
+    from robot.cli.llm_cmd import RELEASES, resolve_nightly_tag
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "HEAD" and request.url.path.endswith("/releases/latest"):
+            return httpx.Response(302, headers={"location": f"{RELEASES}/tag/v0.5.0"})
+        if request.url.path.endswith("/download/v0.5.0/nightly-tag.txt"):
+            return httpx.Response(200, text="b11146\n")
+        return httpx.Response(404)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert resolve_nightly_tag(client) == "b11146"
+
+    def direct(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": f"{RELEASES}/tag/b9999"})
+
+    with httpx.Client(transport=httpx.MockTransport(direct)) as client:
+        assert resolve_nightly_tag(client) == "b9999"

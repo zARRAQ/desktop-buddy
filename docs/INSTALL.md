@@ -198,16 +198,19 @@ uv run python -c "import hailo_platform, picamera2, gpiozero; print('ok')"
 If you prefer pip-installed GPIO libraries, `uv sync --extra pi --extra voice` compiles them;
 the apt route is faster and is what the docs assume.
 
-For the language model, install llama.cpp (any recent release; `llama-server` must be on PATH):
+For the language model:
 
 ```bash
-# example: prebuilt release
-curl -L -o llama.zip https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-bin-ubuntu-arm64.zip
-unzip llama.zip -d ~/llama && sudo ln -sf ~/llama/build/bin/llama-server /usr/local/bin/llama-server
+uv run robot llm install              # prebuilt llama-server for arm64 (falls back to --build)
+uv run robot provision --group llm    # Gemma 3 1B, about 0.8 GB
+uv run robot llm test                 # starts the server, asks one question, reports tokens/s
 ```
 
-Then set `brain.managed: llama_server` in `config/local.yaml` so the brain service starts it.
-Alternatively run Ollama, or on an AI HAT+ 2 run `hailo-ollama`, and point `brain.endpoint` at it.
+`llm install` fetches llama.cpp's CPU build for Linux arm64 into `~/.local/share/robot/llama`,
+checks it runs, and writes `brain.managed: llama_server` plus the binary path into
+`config/local.yaml`. If the prebuilt binary will not run on your OS it compiles from source
+(`--build`, 10 to 15 minutes). Alternatively run Ollama, or on an AI HAT+ 2 `hailo-ollama`, and
+point `brain.endpoint` at it with `brain.managed: none`.
 
 ### B7. Download models
 
