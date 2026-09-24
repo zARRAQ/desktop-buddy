@@ -26,12 +26,12 @@ LCD_H = 160
 BOOT_EYE = (62, 224, 230)  # same cyan as the Pi's default face
 BOOT_BG = (0, 0, 0)
 LED_PIN = "P9"  # illumination LEDs, if the unit wires them to a pin
-VERSION = "buddy-openmv 2"
+VERSION = "buddy-openmv 3"
 
 cam_w, cam_h, quality, fps, leds_on = 320, 240, 70, 10, 0
 seq = 0
 last_pi_ms = 0
-PI_TIMEOUT_MS = 5000
+PI_TIMEOUT_MS = 8000  # the Pi pings every second; this survives a hiccup
 
 usb = pyb.USB_VCP()
 usb.setinterrupt(-1)  # binary data must never raise KeyboardInterrupt

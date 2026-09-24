@@ -39,12 +39,16 @@ class OpenMvLink:
         on_log: TextCallback | None = None,
         on_pong: TextCallback | None = None,
         write_timeout_s: float = 0.5,
+        keepalive_s: float = 1.0,
     ) -> None:
         self.port_name = port
         self._on_frame = on_frame
         self._on_log = on_log or (lambda s: log.info("openmv: %s", s))
         self._on_pong = on_pong or (lambda s: log.info("openmv pong: %s", s))
         self._write_timeout = write_timeout_s
+        self._keepalive = keepalive_s  # the board stops streaming if it hears nothing from us
+        self._last_ping = 0.0
+        self.board = ""
         self._serial: object | None = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -128,6 +132,10 @@ class OpenMvLink:
             ser = self._serial
             if ser is None:
                 return
+            now = time.monotonic()
+            if self._keepalive > 0 and now - self._last_ping >= self._keepalive:
+                self._last_ping = now
+                self.ping()
             try:
                 data = ser.read(65536)  # type: ignore[attr-defined]
             except Exception as exc:
@@ -154,4 +162,7 @@ class OpenMvLink:
         elif kind == proto.TYPE_LOG:
             self._on_log(payload.decode("utf-8", errors="replace"))
         elif kind == proto.TYPE_PONG:
-            self._on_pong(payload.decode("utf-8", errors="replace"))
+            text = payload.decode("utf-8", errors="replace")
+            if text != self.board:  # pongs answer every keepalive; only news is worth a callback
+                self.board = text
+                self._on_pong(text)

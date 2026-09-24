@@ -214,6 +214,10 @@ def camera_test(
     while time.monotonic() < t_end:
         frame = cam.read(timeout=0.5)
         if frame is None:
+            time.sleep(0.005)
+            for ev in pipe.pump_events():
+                if ev.type == pygame.QUIT:
+                    t_end = 0
             continue
         frames += 1
         img = frame.image
