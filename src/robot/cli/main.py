@@ -249,6 +249,37 @@ def config_show(ctx: typer.Context, section: str | None = typer.Argument(None)) 
     typer.echo(yaml.safe_dump(data, sort_keys=False))
 
 
+@config_app.command("set")
+def config_set(
+    ctx: typer.Context,
+    key: str = typer.Argument(..., help="Dotted setting, e.g. openmv.enabled or camera.backend"),
+    value: str = typer.Argument(..., help="New value: true, 320, bus, '#ff0000' ..."),
+) -> None:
+    """Write one setting into config/local.yaml (validated; a bad value is rolled back)."""
+    from robot.core import paths
+    from robot.core.config import _coerce_scalar, load_config, write_local_setting
+
+    c = get_ctx(ctx)
+    cdir = c.config_dir or paths.config_dir()
+    local = cdir / "local.yaml"
+    before = local.read_text() if local.exists() else None
+    path = write_local_setting(key, _coerce_scalar(value), config_dir=cdir)
+    try:
+        cfg = load_config(config_dir=cdir, use_env=False)
+    except ValueError as exc:
+        if before is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_text(before)
+        typer.secho(f"rejected: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(2) from exc
+    section, _, rest = key.partition(".")
+    node: object = getattr(cfg, section, None)
+    for part in rest.split(".") if rest else []:
+        node = getattr(node, part, None) if node is not None else None
+    typer.secho(f"{key} = {node!r}  (written to {path})", fg=typer.colors.GREEN)
+
+
 @config_app.command("path")
 def config_path(ctx: typer.Context) -> None:
     """Show where configuration, data and models live."""

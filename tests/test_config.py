@@ -154,3 +154,22 @@ def test_robot_run_cmdline_matcher_ignores_uv_and_other_subcommands():
     assert not m(["/x/.venv/bin/python", "/x/.venv/bin/robot", "autostart", "stop"])
     assert not m(["/x/.venv/bin/python", "/x/.venv/bin/robot", "sim"])
     assert not m(["bash"])
+
+
+def test_config_set_writes_validates_and_rolls_back(tmp_path):
+    from typer.testing import CliRunner
+
+    from robot.cli.main import app
+
+    cdir = tmp_path / "config"
+    runner = CliRunner()
+    r = runner.invoke(app, ["--config-dir", str(cdir), "config", "set", "openmv.enabled", "true"])
+    assert r.exit_code == 0, r.output
+    r = runner.invoke(app, ["--config-dir", str(cdir), "config", "set", "camera.backend", "bus"])
+    assert r.exit_code == 0, r.output
+    cfg = load_config(config_dir=cdir, use_env=False)
+    assert cfg.openmv.enabled and cfg.camera.backend == "bus"
+    text = (cdir / "local.yaml").read_text()
+    r = runner.invoke(app, ["--config-dir", str(cdir), "config", "set", "camera.backend", "webcam"])
+    assert r.exit_code == 2 and "rejected" in r.output
+    assert (cdir / "local.yaml").read_text() == text  # rolled back

@@ -193,6 +193,12 @@ def camera_test(
         cam, link = _openmv_feed(cfg)
     if cam.info.backend == "null":
         typer.secho("no camera", fg=typer.colors.RED)
+        from robot.hal.openmv.link import find_port
+
+        if not cfg.openmv.enabled and find_port():
+            typer.echo("An OpenMV board is plugged in. Enable it with:")
+            typer.echo("  uv run robot config set openmv.enabled true")
+            typer.echo("  uv run robot config set camera.backend bus")
         raise typer.Exit(1)
     backend = None
     if detect:

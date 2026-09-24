@@ -26,7 +26,7 @@ LCD_H = 160
 BOOT_EYE = (62, 224, 230)  # same cyan as the Pi's default face
 BOOT_BG = (0, 0, 0)
 LED_PIN = "P9"  # illumination LEDs, if the unit wires them to a pin
-VERSION = "buddy-openmv 1"
+VERSION = "buddy-openmv 2"
 
 cam_w, cam_h, quality, fps, leds_on = 320, 240, 70, 10, 0
 seq = 0
@@ -89,18 +89,24 @@ def rgb565_to_tuple(v):
     return (((v >> 11) & 0x1F) << 3, ((v >> 5) & 0x3F) << 2, (v & 0x1F) << 3)
 
 
+faces_shown = 0
+
+
 def show_face(w, h, fg, bg, bits):
-    global fast_binary
+    global fast_binary, faces_shown
+    faces_shown += 1
     fgc, bgc = rgb565_to_tuple(fg), rgb565_to_tuple(bg)
     if fast_binary:
         try:
             set_palette(fgc, bgc)
             img = image.Image(w, h, image.BINARY, buffer=bits)
             screen.show(img.to_rgb565(color_palette=palette))
+            if faces_shown == 0:
+                log("face %dx%d via fast binary path" % (w, h))
             return
         except Exception as exc:
             fast_binary = False
-            log("binary fast path unavailable (%s); drawing runs" % exc)
+            log("binary fast path unavailable (%r); drawing runs instead" % exc)
     # slow path: draw horizontal runs of lit pixels
     img = image.Image(w, h, image.RGB565)
     if bgc != (0, 0, 0):
@@ -246,9 +252,11 @@ def set_leds(on):
 def send_frame():
     global seq
     img = sensor.snapshot()
+    w, h = img.width(), img.height()
     jpg = img.compress(quality=quality)
     seq += 1
-    send("J", struct.pack("<HHI", img.width(), img.height(), seq))
+    # one header for the whole message: 8 bytes of frame info plus the JPEG itself
+    usb.write(struct.pack("<2sBIHHI", b"OM", ord("J"), 8 + jpg.size(), w, h, seq))
     usb.write(jpg.bytearray())
 
 

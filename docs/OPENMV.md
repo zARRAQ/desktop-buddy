@@ -40,24 +40,19 @@ If the screen stays blank or shows garbage, the two lines at the top of `openmv/
 
 ## 2. Tell the robot to use it
 
-Add to `config/local.yaml` (create the file if it does not exist):
+Two commands write the settings into `config/local.yaml` for you:
 
-```yaml
-openmv:
-  enabled: true
-  width: 320          # or 640 x 480
-  height: 240
-  lcd_width: 128      # match LCD_W / LCD_H in openmv/main.py
-  lcd_height: 160
-camera:
-  backend: bus        # frames come over the bridge
-display:
-  backend: bus        # the LCD is the face ...
+```bash
+uv run robot config set openmv.enabled true
+uv run robot config set camera.backend bus
 ```
 
-If you would rather keep the big HDMI face and have the LCD mirror it, leave
-`display.backend` alone (or `auto`): with `openmv.enabled: true` the face service always sends a
-copy to the LCD.
+Optional extras, same way: `openmv.width 640` and `openmv.height 480` for the larger picture,
+`openmv.lcd_width` / `openmv.lcd_height` if your screen is not 128x160 (match `LCD_W` /
+`LCD_H` in `openmv/main.py`), and `display.backend bus` to make the LCD the only face.
+
+With `display.backend` left alone, the big HDMI face stays the main one and the LCD mirrors it:
+with `openmv.enabled: true` the face service always sends a copy to the LCD.
 
 If the LCD is mounted sideways, add `display.rotation: 90` (or 270). The face is rendered at
 LCD size and rotated on the Pi; the board just shows what it gets.

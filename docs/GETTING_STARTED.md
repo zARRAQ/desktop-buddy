@@ -235,7 +235,9 @@ you by name.
 
 ## Step 10. Small fixes you might need
 
-All of these are one line in a text file called `config/local.yaml`. Open it with:
+All of these are one setting each. The easiest way is a command that writes it for you and
+checks it, for example `uv run robot config set display.rotation 180`. If you prefer to edit
+the file `config/local.yaml` yourself, open it with:
 
 ```bash
 nano config/local.yaml
