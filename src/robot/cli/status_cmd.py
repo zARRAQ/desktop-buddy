@@ -49,7 +49,10 @@ def status_command(
             heartbeats[str(env.data.get("name"))] = env.data
         elif env.topic in ("voice.wake", "voice.listening", "voice.speaking", "voice.transcript", "brain.response"):
             key = env.data.get("state") or env.data.get("text") or env.data.get("say") or env.data.get("word")
-            events[env.topic].append(str(key)[:60])
+            label = str(key)[:60]
+            if env.topic == "voice.speaking" and env.data.get("state") == "end":
+                label += f" ({float(env.data.get('duration_s', 0)):.1f}s)"
+            events[env.topic].append(label)
     bus.close()
 
     if not counts:

@@ -70,6 +70,8 @@ class VoiceService(Service):
         self.presence_triggers = 0
         self._last_status = 0.0
         self._next_retry = 0.0
+        self._speech_run_ms = 0
+        self._speak_started = 0.0
 
     def setup(self) -> None:
         if not self.config.voice.enabled:
@@ -119,7 +121,11 @@ class VoiceService(Service):
                 self._speaker = None
                 self._quiet_until = time.monotonic() + self.config.voice.after_speech_guard_ms / 1000.0
                 self.state = VoiceState.IDLE
-                self.bus.publish_payload(VoiceSpeaking(state="end", text=self._speaking_text))
+                took = time.monotonic() - self._speak_started
+                self.log.info("finished speaking after %.1fs: %r", took, self._speaking_text[:60])
+                self.bus.publish_payload(
+                    VoiceSpeaking(state="end", text=self._speaking_text, duration_s=round(took, 2))
+                )
                 if e.wake is not None:
                     e.wake.reset()
             return
@@ -139,17 +145,19 @@ class VoiceService(Service):
                     if score >= self.config.voice.wake.threshold:
                         fired = True
                         self.bus.publish_payload(VoiceWake(word=self.config.voice.wake.model, score=score))
-                if (
-                    not fired
-                    and self.config.voice.listen_on_presence
-                    and self.person_present
-                    and not quiet
-                    and e.vad.is_speech(block)
-                ):
-                    # someone we can see started talking: that is the wake word
-                    fired = spoke = True
-                    self.presence_triggers += 1
-                    self.bus.publish_payload(VoiceWake(word="presence", score=1.0))
+                if self.config.voice.listen_on_presence and self.person_present and not quiet:
+                    if e.vad.is_speech(block):
+                        self._speech_run_ms += self.config.voice.audio.block_ms
+                    else:
+                        self._speech_run_ms = 0
+                    if not fired and self._speech_run_ms >= self.config.voice.presence_min_speech_ms:
+                        # someone we can see has been talking for a moment: that is the wake word
+                        fired = spoke = True
+                        self.presence_triggers += 1
+                        self._speech_run_ms = 0
+                        self.bus.publish_payload(VoiceWake(word="presence", score=1.0))
+                else:
+                    self._speech_run_ms = 0
             if fired:
                 self._start_listening(speaking_now=spoke)
         elif self.state == VoiceState.LISTENING:
@@ -235,6 +243,7 @@ class VoiceService(Service):
             return
         self.state = VoiceState.SPEAKING
         self._speaking_text = msg.text
+        self._speak_started = time.monotonic()
         self.bus.publish_payload(VoiceSpeaking(state="start", text=msg.text, request_id=msg.request_id))
 
         def run() -> None:

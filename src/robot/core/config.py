@@ -197,7 +197,13 @@ class VoiceConfig(StrictModel):
     )
     presence_preroll_ms: int = Field(default=600, ge=0, le=3000, description="Audio kept from before the trigger")
     after_speech_guard_ms: int = Field(
-        default=800, ge=0, description="Ignore the microphone this long after the robot stops talking (echo)"
+        default=1200,
+        ge=0,
+        description="Ignore the microphone this long after the robot stops talking: its own echo, and "
+        "a Bluetooth speaker's delay, must not sound like a person",
+    )
+    presence_min_speech_ms: int = Field(
+        default=240, ge=0, description="Speech must last this long before presence listening starts (no clicks)"
     )
 
 

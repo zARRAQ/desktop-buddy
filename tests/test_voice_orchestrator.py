@@ -338,3 +338,40 @@ def test_engine_failures_are_recorded_and_retried(config):
             eng.close()
     e.source.close()
     e.sink.close()
+
+
+def test_sink_plays_in_chunks_and_reports_early_end(monkeypatch, caplog):
+    """The sink writes through an explicit stream so a Bluetooth underrun cannot end speech
+    early; if the stream still returns too soon, it says so."""
+    import sys
+    import types
+
+    from robot.voice.audio import SounddeviceSink
+
+    writes: list[int] = []
+
+    class FakeStream:
+        latency = 0.01
+
+        def __init__(self, **kw):
+            self.kw = kw
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def write(self, data):
+            writes.append(len(data))
+
+    fake_sd = types.SimpleNamespace(OutputStream=FakeStream, check_output_settings=lambda **kw: None)
+    monkeypatch.setitem(sys.modules, "sounddevice", fake_sd)
+    sink = SounddeviceSink(None, lead_in_ms=100)
+    audio = np.zeros(16000, dtype=np.float32)  # one second
+    with caplog.at_level("WARNING"):
+        sink.play(audio, 16000)
+    assert sum(writes) == 16000 + 1600  # audio plus the lead-in
+    assert all(w <= 800 for w in writes)  # 50 ms chunks
+    assert sink.last_play is not None and sink.last_play[0] == pytest.approx(1.1)
+    assert "playback ended early" in caplog.text  # the fake stream returns instantly, so it warns

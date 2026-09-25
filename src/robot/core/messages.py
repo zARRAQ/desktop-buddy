@@ -92,6 +92,7 @@ class VoiceSpeaking(Payload):
     state: Literal["start", "end", "error"]
     text: str = ""
     request_id: str = ""
+    duration_s: float = 0.0  # on end: wall time from start to the last sample leaving the speaker
 
 
 class VoiceListening(Payload):
